@@ -1,1 +1,0 @@
-# visualisasi-lot
