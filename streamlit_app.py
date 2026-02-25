@@ -123,3 +123,4 @@ if uploaded_file is not None:
             
     except Exception as e:
         st.error(f"Ralat: {e}")
+        st.image("politeknik-ungku-umar-seeklogo-removebg-preview.png", width=180)
