@@ -11,7 +11,7 @@ st.set_page_config(page_title="Visualisasi LOT 11487 - PUO", layout="centered")
 # Kita guna 3 kolom: kiri untuk logo, tengah untuk tajuk, kanan sebagai pengimbang
 col1, col2, col3 = st.columns([1, 3, 1])
 
-logo_path = "politeknik-ungku-umar-seeklogo-removebg-preview.png.png" # Pastikan nama fail betul
+logo_path = "politeknik-ungku-umar-seeklogo-removebg-preview.png" # Pastikan nama fail betul
 
 with col1:
     # Logo di sebelah kiri
@@ -137,5 +137,6 @@ if uploaded_file is not None:
     except Exception as e:
 
         st.error(f"Ralat: {e}")
+
 
 
