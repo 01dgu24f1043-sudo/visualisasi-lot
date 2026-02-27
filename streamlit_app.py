@@ -8,20 +8,33 @@ import os
 st.set_page_config(page_title="Visualisasi LOT 11487 - PUO", layout="centered")
 
 # --- HEADER: TAJUK & LOGO ---
-col1, col2 = st.columns([1, 2])
+# Kita guna 3 kolom: kiri untuk logo, tengah untuk tajuk, kanan sebagai pengimbang
+col1, col2, col3 = st.columns([1, 3, 1])
 
-logo_path = "politeknik-ungku-umar-seeklogo-removebg-preview.png"
+logo_path = "politeknik-ungku-umar-seeklogo-removebg-preview.png.png" # Pastikan nama fail betul
 
 with col1:
-    st.markdown("<h1 style='text-align: left; margin-top: 20px;'POLITEKNIK UNGKO OMAR</h1>", unsafe_allow_html=True)
-
-with col2:
+    # Logo di sebelah kiri
     if os.path.exists(logo_path):
-        st.image(logo_path, width=180)
+        st.image(logo_path, width=120)
     else:
         st.write("PUO")
 
-st.markdown("---") 
+with col2:
+    # Tajuk di tengah
+    st.markdown(
+        """
+        <div style='text-align: center;'>
+            <h1 style='margin-bottom: 0;'>POLITEKNIK UNGKU OMAR</h1>
+            <p style='font-size: 1.2em;'>Jabatan Kejuruteraan Awam</p>
+        </div>
+        """, 
+        unsafe_allow_html=True
+    )
+
+# col3 dibiarkan kosong supaya tajuk tetap berada di tengah (centering)
+
+st.markdown("---")
 
 def decimal_to_dms(deg):
     d = int(deg)
@@ -124,3 +137,4 @@ if uploaded_file is not None:
     except Exception as e:
 
         st.error(f"Ralat: {e}")
+
