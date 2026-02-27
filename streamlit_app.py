@@ -26,7 +26,7 @@ with col2:
         """
         <div style='text-align: center;'>
             <h4 style='margin-bottom: 0;'>POLITEKNIK UNGKU OMAR</h1>
-            <p style='font-size: 1.2em;'>Jabatan Kejuruteraan Geomatik</p>
+            <p style='font-size: 1.2em;'>Jabatan Kejuruteraan Geomatik-Sistem Lot Poligon</p>
         </div>
         """, 
         unsafe_allow_html=True
@@ -137,6 +137,7 @@ if uploaded_file is not None:
     except Exception as e:
 
         st.error(f"Ralat: {e}")
+
 
 
 
