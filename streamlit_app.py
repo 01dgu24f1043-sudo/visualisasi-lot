@@ -8,12 +8,12 @@ import os
 st.set_page_config(page_title="Visualisasi LOT 11487 - PUO", layout="centered")
 
 # --- HEADER: TAJUK & LOGO ---
-col1, col2 = st.columns([3, 1])
+col1, col2 = st.columns([1, 2])
 
 logo_path = "politeknik-ungku-umar-seeklogo-removebg-preview.png"
 
 with col1:
-    st.markdown("<h1 style='text-align: left; margin-top: 20px;'>LOT 11487</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 style='text-align: left; margin-top: 20px;'POLITEKNIK UNGKO OMAR</h1>", unsafe_allow_html=True)
 
 with col2:
     if os.path.exists(logo_path):
@@ -122,4 +122,5 @@ if uploaded_file is not None:
             st.success(f"Selesai! LOT 11487 telah dijana.")
             
     except Exception as e:
+
         st.error(f"Ralat: {e}")
