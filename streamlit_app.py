@@ -16,7 +16,7 @@ logo_path = "politeknik-ungku-umar-seeklogo-removebg-preview.png" # Pastikan nam
 with col1:
     # Logo di sebelah kiri
     if os.path.exists(logo_path):
-        st.image(logo_path, width=120)
+        st.image(logo_path, width=200)
     else:
         st.write("PUO")
 
@@ -137,6 +137,7 @@ if uploaded_file is not None:
     except Exception as e:
 
         st.error(f"Ralat: {e}")
+
 
 
 
