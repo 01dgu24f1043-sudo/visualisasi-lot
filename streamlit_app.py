@@ -41,8 +41,8 @@ if check_password():
         if s >= 60: s = 0; m += 1
         return f"{d}°{m:02d}'{s:02d}\""
 
-    if os.path.exists("data ukur.csv"):
-        df = pd.read_csv("data ukur.csv")
+    if os.path.exists("point.csv"):
+        df = pd.read_csv("point.csv")
         df['lon'] = df['x']
         df['lat'] = df['y']
         
@@ -131,3 +131,4 @@ if check_password():
         st.plotly_chart(fig, use_container_width=True)
     else:
         st.error("Fail 'data ukur.csv' tidak dijumpai.")
+
