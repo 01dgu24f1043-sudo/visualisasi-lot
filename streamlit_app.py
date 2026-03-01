@@ -29,9 +29,9 @@ def check_password():
 if check_password():
     # --- SIDEBAR ---
     st.sidebar.header("⚙️ Tetapan Peta")
-    # Kod 4390 adalah Cassini Perak. Pastikan kod ini betul mengikut negeri.
-    epsg_input = st.sidebar.text_input("Kod EPSG (Cth Cassini Perak: 4390):", value="4390")
-    zoom_val = st.sidebar.slider("🔍 Tahap Zoom:", 10, 22, 20)
+    # PENTING: Untuk data anda, pastikan EPSG adalah 4390 (Perak)
+    epsg_input = st.sidebar.text_input("Kod EPSG (Perak: 4390):", value="4390")
+    zoom_val = st.sidebar.slider("🔍 Tahap Zoom:", 10, 22, 19)
     
     st.sidebar.subheader("🏷️ Tetapan Label")
     show_stn = st.sidebar.checkbox("Label Stesen", value=True)
@@ -51,59 +51,60 @@ if check_password():
         df = pd.read_csv(file_path)
         df.columns = df.columns.str.strip()
 
-        # TRANSFORMASI KE WGS84 UNTUK PETA
+        # TRANSFORMASI KOORDINAT (Cassini -> WGS84)
         try:
+            # Gunakan transformer untuk tukar E,N ke Lat,Lon
             transformer = Transformer.from_crs(f"EPSG:{epsg_input}", "EPSG:4326", always_xy=True)
             lon, lat = transformer.transform(df['E'].values, df['N'].values)
             df['lon'], df['lat'] = lon, lat
-        except:
-            st.sidebar.error("Ralat EPSG! Sila semak kod EPSG negeri anda.")
-            df['lon'], df['lat'] = 0.0, 0.0
+        except Exception as e:
+            st.error(f"Ralat Pertukaran Koordinat: {e}")
 
+        # Tutup poligon (sambung balik ke stesen asal)
         df_poly = pd.concat([df, df.iloc[[0]]], ignore_index=True)
         center_lat, center_lon = df['lat'].mean(), df['lon'].mean()
 
         # 2. BINA PETA
         fig = go.Figure()
 
-        # Lukis Poligon (Yellow Line)
+        # LUKIS POLIGON (GARISAN KUNING)
         fig.add_trace(go.Scattermapbox(
             lat=df_poly['lat'], lon=df_poly['lon'],
             mode='lines+markers',
             fill="toself", fillcolor="rgba(255, 255, 0, 0.2)",
-            line=dict(width=3, color='yellow'),
+            line=dict(width=4, color='yellow'),
             marker=dict(size=10, color='red'),
-            name="Lot"
+            name="Sempadan"
         ))
 
-        # 3. LABEL DATA (BEARING, JARAK, STESEN)
-        # Offset untuk memisahkan Bearing (Atas) dan Jarak (Bawah)
-        offset_lat = 0.000012 
+        # 3. LABEL BEARING, JARAK & STESEN
+        # Offset untuk memisahkan teks supaya tidak bertindih
+        offset_val = 0.000015 
 
         for i in range(len(df_poly)-1):
             p1, p2 = df_poly.iloc[i], df_poly.iloc[i+1]
             
-            # Kira Bearing & Jarak guna unit METER (E, N)
+            # Kira Bearing & Jarak (Guna unit meter E, N)
             dE = p2['E'] - p1['E']
             dN = p2['N'] - p1['N']
             dist = np.sqrt(dE**2 + dN**2)
             brg = np.degrees(np.arctan2(dE, dN)) % 360
             
-            # Kedudukan Tengah Garisan
+            # Titik tengah garisan (Lat/Lon)
             m_lat, m_lon = (p1['lat'] + p2['lat'])/2, (p1['lon'] + p2['lon'])/2
 
             if show_data:
-                # Label Bearing (Cyan - Atas)
+                # Label Bearing (Cyan - Atas sedikit)
                 fig.add_trace(go.Scattermapbox(
-                    lat=[m_lat + offset_lat], lon=[m_lon],
+                    lat=[m_lat + offset_val], lon=[m_lon],
                     mode='text', text=[decimal_to_dms(brg)],
-                    textfont=dict(size=11, color="cyan", family="Arial Black")
+                    textfont=dict(size=12, color="cyan", family="Arial Black")
                 ))
-                # Label Jarak (Yellow - Bawah)
+                # Label Jarak (Yellow - Bawah sedikit)
                 fig.add_trace(go.Scattermapbox(
-                    lat=[m_lat - offset_lat], lon=[m_lon],
+                    lat=[m_lat - offset_val], lon=[m_lon],
                     mode='text', text=[f"{dist:.3f}m"],
-                    textfont=dict(size=10, color="yellow", family="Arial")
+                    textfont=dict(size=11, color="yellow", family="Arial")
                 ))
 
         if show_stn:
@@ -114,7 +115,7 @@ if check_password():
                 textfont=dict(size=14, color="white", family="Arial Black")
             ))
 
-        # 4. PENGIRAAN LUAS (Shoelace Formula)
+        # 4. LUAS (Formula Shoelace Meter)
         if show_area:
             area = 0.5 * np.abs(np.dot(df['E'], np.roll(df['N'], 1)) - np.dot(df['N'], np.roll(df['E'], 1)))
             fig.add_trace(go.Scattermapbox(
@@ -123,12 +124,13 @@ if check_password():
                 textfont=dict(size=18, color="yellow", family="Arial Black")
             ))
 
-        # 5. LAYOUT
+        # 5. LAYOUT & GOOGLE SATELLITE
         fig.update_layout(
             mapbox=dict(
                 style="white-bg",
                 layers=[{
-                    "below": 'traces', "sourcetype": "raster",
+                    "below": 'traces',
+                    "sourcetype": "raster",
                     "source": ["https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}"]
                 }],
                 center=dict(lat=center_lat, lon=center_lon),
@@ -138,5 +140,10 @@ if check_password():
         )
 
         st.plotly_chart(fig, use_container_width=True)
+        
+        # Papar jadual data di bawah peta untuk semakan
+        st.write("### 📋 Semakan Data Meter (point.csv)")
+        st.dataframe(df[['STN', 'E', 'N']])
+        
     else:
-        st.error("Fail 'point.csv' tidak dijumpai.")
+        st.error("Fail 'point.csv' tidak dijumpai. Sila pastikan fail ada di GitHub.")
