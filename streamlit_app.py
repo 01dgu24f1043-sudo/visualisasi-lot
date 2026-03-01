@@ -3,7 +3,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import numpy as np
 import os
-from pyproj import Geod # Gunakan Geod untuk jarak/bearing tepat pada glob
+from pyproj import Geod
 
 # 1. Konfigurasi Halaman
 st.set_page_config(page_title="Sistem Lot Geomatik", layout="wide")
@@ -29,8 +29,7 @@ def check_password():
 if check_password():
     # --- SIDEBAR ---
     st.sidebar.header("⚙️ Tetapan Peta")
-    # Memandangkan data anda 102.52, 2.10, ia ADALAH 4326 (WGS84)
-    epsg_code = st.sidebar.text_input("Kod EPSG (Data WGS84 gunakan 4326):", value="4326")
+    st.sidebar.info("Data dikesan sebagai WGS84 (Lat/Lon)")
     zoom_val = st.sidebar.slider("🔍 Tahap Zoom:", 10, 22, 19)
     
     st.sidebar.subheader("🏷️ Tetapan Label")
@@ -49,13 +48,12 @@ if check_password():
     if os.path.exists("data ukur.csv"):
         df = pd.read_csv("data ukur.csv")
         
-        # Penamaan semula untuk paparan (x=E, y=N)
+        # Penamaan semula untuk paparan ukur (x=E, y=N)
         df = df.rename(columns={'x': 'E', 'y': 'N'})
-        
-        # Koordinat untuk Plotly (Lon/Lat)
         df['lon'] = df['E']
         df['lat'] = df['N']
 
+        # Poligon tertutup untuk lukisan
         df_poly = pd.concat([df, df.iloc[[0]]], ignore_index=True)
         center_lat, center_lon = df['lat'].mean(), df['lon'].mean()
 
@@ -72,6 +70,8 @@ if check_password():
             name="Sempadan"
         ))
 
+        geod = Geod(ellps="WGS84")
+
         # Trace 2: Label Stesen
         if show_stn:
             fig.add_trace(go.Scattermapbox(
@@ -81,22 +81,19 @@ if check_password():
                 textfont=dict(size=14, color="white")
             ))
 
-        # Trace 3: Bearing & Jarak (Guna Geod untuk koordinat darjah)
+        # Trace 3: Bearing & Jarak
         if show_brg_dist:
-            geod = Geod(ellps="WGS84")
             lats_mid, lons_mid, texts_mid = [], [], []
             for i in range(len(df_poly)-1):
                 p1, p2 = df_poly.iloc[i], df_poly.iloc[i+1]
                 
-                # Kira Bearing & Jarak Geodetik (tepat untuk Lat/Lon)
-                # fwd_azimuth adalah bearing dari p1 ke p2
-                fwd_azimuth, back_azimuth, distance = geod.inv(p1['lon'], p1['lat'], p2['lon'], p2['lat'])
-                
-                brg = fwd_azimuth % 360
+                # Kiriman Geodetik
+                fwd_az, back_az, dist = geod.inv(p1['lon'], p1['lat'], p2['lon'], p2['lat'])
+                brg = fwd_az % 360
                 
                 lats_mid.append((p1['lat'] + p2['lat']) / 2)
                 lons_mid.append((p1['lon'] + p2['lon']) / 2)
-                texts_mid.append(f"<b>{decimal_to_dms(brg)}<br>{distance:.2f}m</b>")
+                texts_mid.append(f"<b>{decimal_to_dms(brg)}<br>{dist:.2f}m</b>")
             
             fig.add_trace(go.Scattermapbox(
                 lat=lats_mid, lon=lons_mid,
@@ -104,10 +101,14 @@ if check_password():
                 textfont=dict(size=11, color="cyan")
             ))
 
-        # Trace 4: Luas (Guna formula Geodetik untuk WGS84)
+        # Trace 4: Luas (Dibetulkan untuk mengelakkan ralat Invalid Geometry)
         if show_area:
-            geod = Geod(ellps="WGS84")
-            area_m2, perimeter = geod.geometry_area_perimeter(df['lon'], df['lat'])
+            # Pastikan koordinat dihantar sebagai list biasa
+            lons_list = df['lon'].tolist()
+            lats_list = df['lat'].tolist()
+            # Pengiraan luas geodetik
+            area_m2, perim = geod.polygon_area_perimeter(lons_list, lats_list)
+            
             fig.add_trace(go.Scattermapbox(
                 lat=[center_lat], lon=[center_lon],
                 mode='text', text=[f"LUAS: {abs(area_m2):.2f} m²"],
@@ -129,7 +130,7 @@ if check_password():
         )
 
         st.plotly_chart(fig, use_container_width=True)
-        st.write("### 📋 Data Koordinat (N, E)")
+        st.write("### 📋 Data Koordinat Terkini")
         st.dataframe(df[['STN', 'N', 'E']])
     else:
         st.error("Fail 'data ukur.csv' tidak dijumpai.")
