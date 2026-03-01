@@ -49,7 +49,7 @@ if check_password():
     uploaded_file = st.sidebar.file_uploader("Muat Naik Fail CSV Anda (STN, E, N)", type=["csv"])
     
     st.sidebar.header("⚙️ Tetapan Peta")
-    show_satellite = st.sidebar.checkbox("Buka Layer Satelit (On/Off)", value=True)
+    show_satellite = st.sidebar.checkbox("🌏 Buka Layer Satelit (On/Off)", value=True)
     epsg_input = st.sidebar.text_input("Kod EPSG (Cth: 4390, 3386, 3168):", value="4390")
     zoom_val = st.sidebar.slider("🔍 Zum Keluar Peta (Margin dalam Meter):", 15, 22, 20)
     
@@ -178,6 +178,7 @@ if check_password():
             st.error(f"Gagal memproses fail: {e}")
     else:
         st.info("Sila muat naik fail CSV di sidebar untuk memulakan visualisasi.")
+
 
 
 
