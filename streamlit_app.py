@@ -1,97 +1,66 @@
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
-import numpy as np
 import os
 
-# 1. Konfigurasi Halaman
-st.set_page_config(page_title="Sistem Lot Poligon WGS84", layout="wide")
+st.set_page_config(page_title="PUO - Satellite Viewer", layout="wide")
 
-# --- HEADER: TAJUK & LOGO ---
-col1, col2, col3 = st.columns([1, 3, 1])
-logo_path = "politeknik-ungku-umar-seeklogo-removebg-preview.png" 
+# Header Ringkas
+st.markdown("<h2 style='text-align: center;'>🛰️ Paparan Satelit Lot Poligon</h2>", unsafe_allow_html=True)
 
-with col1:
-    if os.path.exists(logo_path):
-        st.image(logo_path, width=150)
-    else:
-        st.write("### PUO")
-
-with col2:
-    st.markdown(
-        """
-        <div style='text-align: center;'>
-            <h2 style='margin-bottom: 0;'>POLITEKNIK UNGKU OMAR</h2>
-            <p style='font-size: 1.2em;'>Jabatan Kejuruteraan Geomatik - Visualisasi Lot WGS 84</p>
-        </div>
-        """, 
-        unsafe_allow_html=True
-    )
-
-st.markdown("---")
-
-# --- LOADING DATA ---
-# Fail CSV anda mempunyai kolum: STN, x (Lon), y (Lat)
 default_file = "data ukur.csv"
 
 if os.path.exists(default_file):
     df = pd.read_csv(default_file)
     
-    # Memastikan kolum yang betul digunakan
-    # x = Longitude, y = Latitude
-    df['lon'] = df['x']
-    df['lat'] = df['y']
+    # Tukar nama kolum untuk Plotly (x=lon, y=lat)
+    df = df.rename(columns={'x': 'lon', 'y': 'lat'})
     
-    # Tutup poligon (sambung balik ke stesen asal)
+    # Tutup poligon
     df_poly = pd.concat([df, df.iloc[[0]]], ignore_index=True)
 
-    # 2. BINA PETA SATELIT
+    # BINA PETA
     fig = go.Figure()
 
-    # Tambah Poligon (Garisan & Warna Isi)
+    # 1. Tambah Poligon & Titik
     fig.add_trace(go.Scattermapbox(
         lat=df_poly['lat'],
         lon=df_poly['lon'],
         mode='lines+markers+text',
         fill="toself",
-        fillcolor="rgba(255, 255, 0, 0.3)", # Kuning lutsinar
-        marker=dict(size=10, color='red'),
+        fillcolor="rgba(0, 255, 255, 0.4)", # Biru Cyan lutsinar
+        marker=dict(size=12, color='red'),
         line=dict(width=3, color='yellow'),
         text=df_poly['STN'],
         textposition="top right",
-        hoverinfo='text+lat+lon'
+        hoverinfo='text'
     ))
 
-    # Konfigurasi Layout Mapbox
+    # 2. KONFIGURASI LAYOUT (Penyelesaian isu putih)
     fig.update_layout(
         mapbox=dict(
-            style="white-bg", 
+            # Kita guna 'open-street-map' sebagai dasar supaya tidak kosong
+            style="open-street-map", 
             layers=[
                 {
                     "below": 'traces',
                     "sourcetype": "raster",
                     "sourceattribution": "Esri World Imagery",
                     "source": [
-                        "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+                        # Pelayan alternatif (ArcGIS Online) yang sangat stabil
+                        "https://services.arcgisonline.com/arcgis/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
                     ]
                 }
             ],
             center=dict(lat=df['lat'].mean(), lon=df['lon'].mean()),
-            zoom=19 # Zoom lebih dekat untuk nampak lot
+            zoom=18 # Jika masih putih, cuba kurangkan ke 15
         ),
         margin={"r":0,"t":0,"l":0,"b":0},
-        height=700,
-        showlegend=False
+        height=700
     )
 
-    # Paparkan dalam Streamlit
     st.plotly_chart(fig, use_container_width=True)
-    
-    # Paparan Data
-    st.success(f"Berjaya memaparkan lot berdasarkan koordinat WGS 84.")
-    
-    with st.expander("Lihat Data Koordinat"):
-        st.dataframe(df[['STN', 'x', 'y']])
+    st.info("Jika peta masih putih: 1. Pastikan internet stabil. 2. Cuba buka di Google Chrome mod 'Incognito'.")
 
 else:
-    st.error(f"Fail '{default_file}' tidak dijumpai dalam direktori.")
+    st.error("Fail 'data ukur.csv' tidak dijumpai.")
