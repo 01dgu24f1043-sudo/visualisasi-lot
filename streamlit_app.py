@@ -5,61 +5,67 @@ import numpy as np
 import os
 
 # 1. Konfigurasi Halaman
-st.set_page_config(page_title="PUO Geomatik - Satellite Overlay", layout="wide")
+st.set_page_config(page_title="Sistem Lot Poligon WGS84", layout="wide")
 
-# --- FUNGSI PENUKARAN KOORDINAT (CASSINI/LOCAL TO WGS84) ---
-def transform_to_latlon(df):
-    """
-    Menukarkan koordinat meter (E, N) kepada Latitud/Longitud.
-    Titik Rujukan: STN 5 (999.99, 1000.00) diletakkan di PUO.
-    """
-    # Koordinat Lat/Lon SEBENAR untuk PUO (Stesen 5)
-    ref_lat = 4.588825  
-    ref_lon = 101.043690
-    
-    # Rujukan asalan dalam CSV (E=1000, N=1000)
-    origin_e = 1000.0
-    origin_n = 1000.0
-    
-    # Faktor penukaran kasar (meter ke darjah)
-    lat_per_meter = 1 / 111320
-    lon_per_meter = 1 / (111320 * np.cos(np.radians(ref_lat)))
-    
-    df['lat'] = ref_lat + (df['N'] - origin_n) * lat_per_meter
-    df['lon'] = ref_lon + (df['E'] - origin_e) * lon_per_meter
-    return df
+# --- HEADER: TAJUK & LOGO ---
+col1, col2, col3 = st.columns([1, 3, 1])
+logo_path = "politeknik-ungku-umar-seeklogo-removebg-preview.png" 
 
-# --- CARI FAIL CSV ---
-default_file = "point.csv"
+with col1:
+    if os.path.exists(logo_path):
+        st.image(logo_path, width=150)
+    else:
+        st.write("### PUO")
+
+with col2:
+    st.markdown(
+        """
+        <div style='text-align: center;'>
+            <h2 style='margin-bottom: 0;'>POLITEKNIK UNGKU OMAR</h2>
+            <p style='font-size: 1.2em;'>Jabatan Kejuruteraan Geomatik - Visualisasi Lot WGS 84</p>
+        </div>
+        """, 
+        unsafe_allow_html=True
+    )
+
+st.markdown("---")
+
+# --- LOADING DATA ---
+# Fail CSV anda mempunyai kolum: STN, x (Lon), y (Lat)
+default_file = "data ukur.csv"
 
 if os.path.exists(default_file):
     df = pd.read_csv(default_file)
-    df = transform_to_latlon(df)
+    
+    # Memastikan kolum yang betul digunakan
+    # x = Longitude, y = Latitude
+    df['lon'] = df['x']
+    df['lat'] = df['y']
+    
+    # Tutup poligon (sambung balik ke stesen asal)
     df_poly = pd.concat([df, df.iloc[[0]]], ignore_index=True)
 
-    st.title("🛰️ Paparan Satelit Lot Poligon")
-
-    # 2. BINA PETA (Guna Mapbox Layer)
+    # 2. BINA PETA SATELIT
     fig = go.Figure()
 
-    # Tambah Poligon
+    # Tambah Poligon (Garisan & Warna Isi)
     fig.add_trace(go.Scattermapbox(
         lat=df_poly['lat'],
         lon=df_poly['lon'],
         mode='lines+markers+text',
         fill="toself",
-        fillcolor="rgba(0, 255, 255, 0.3)", # Biru cyan lutsinar
-        marker=dict(size=12, color='yellow'),
+        fillcolor="rgba(255, 255, 0, 0.3)", # Kuning lutsinar
+        marker=dict(size=10, color='red'),
         line=dict(width=3, color='yellow'),
         text=df_poly['STN'],
-        textposition="top center",
-        hoverinfo='text'
+        textposition="top right",
+        hoverinfo='text+lat+lon'
     ))
 
-    # 3. CONFIGURATION MAPBOX & SATELIT
+    # Konfigurasi Layout Mapbox
     fig.update_layout(
         mapbox=dict(
-            style="white-bg", # Mesti guna white-bg jika guna layer raster
+            style="white-bg", 
             layers=[
                 {
                     "below": 'traces',
@@ -71,15 +77,21 @@ if os.path.exists(default_file):
                 }
             ],
             center=dict(lat=df['lat'].mean(), lon=df['lon'].mean()),
-            zoom=18 # Dekatkan zoom supaya nampak bangunan
+            zoom=19 # Zoom lebih dekat untuk nampak lot
         ),
         margin={"r":0,"t":0,"l":0,"b":0},
         height=700,
         showlegend=False
     )
 
+    # Paparkan dalam Streamlit
     st.plotly_chart(fig, use_container_width=True)
-    st.success("Satelit berjaya dimuatkan dengan koordinat transformasi.")
     
+    # Paparan Data
+    st.success(f"Berjaya memaparkan lot berdasarkan koordinat WGS 84.")
+    
+    with st.expander("Lihat Data Koordinat"):
+        st.dataframe(df[['STN', 'x', 'y']])
+
 else:
-    st.error(f"Fail '{default_file}' tidak dijumpai. Sila pastikan fail CSV ada dalam folder yang sama.")
+    st.error(f"Fail '{default_file}' tidak dijumpai dalam direktori.")
