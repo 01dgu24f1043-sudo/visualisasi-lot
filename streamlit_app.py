@@ -48,7 +48,7 @@ if check_password():
         return f"{d}°{m:02d}'{s:02d}\""
 
     # --- LOADING DATA ---
-    default_file = "data ukur.csv"
+    default_file = "point.csv"
     if os.path.exists(default_file):
         df = pd.read_csv(default_file)
         
@@ -130,3 +130,4 @@ if check_password():
         st.plotly_chart(fig, use_container_width=True)
     else:
         st.error("Fail 'data ukur.csv' tidak dijumpai.")
+
