@@ -6,7 +6,7 @@ import os
 from pyproj import Transformer
 
 # 1. Konfigurasi Halaman
-st.set_page_config(page_title="Sistem Visualisasi Lot PUO", layout="wide")
+st.set_page_config(page_title="Sistem Lot Geomatik PUO", layout="wide")
 
 # --- FUNGSI KATA LALUAN ---
 def check_password():
@@ -27,15 +27,11 @@ def check_password():
     return True
 
 if check_password():
-    # --- SIDEBAR TETAPAN ---
-    st.sidebar.header("⚙️ Konfigurasi")
+    # --- SIDEBAR ---
+    st.sidebar.header("⚙️ Tetapan Peta")
+    # Guna 4390 untuk Perak (Berdasarkan data point.csv anda)
     epsg_input = st.sidebar.text_input("Kod EPSG (Perak: 4390):", value="4390")
-    zoom_level = st.sidebar.slider("🔍 Zoom:", 15, 22, 20)
-    
-    st.sidebar.subheader("🏷️ Paparan Label")
-    show_stn = st.sidebar.checkbox("Label No. Stesen", value=True)
-    show_data = st.sidebar.checkbox("Label Bearing & Jarak", value=True)
-    show_area = st.sidebar.checkbox("Label Luas Lot", value=True)
+    zoom_val = st.sidebar.slider("🔍 Zoom:", 15, 22, 20)
 
     def decimal_to_dms(deg):
         d = int(deg)
@@ -50,21 +46,22 @@ if check_password():
         df = pd.read_csv(file_path)
         df.columns = df.columns.str.strip()
 
-        # TRANSFORMASI KOORDINAT
+        # TRANSFORMASI KOORDINAT (Meter ke WGS84)
         try:
             transformer = Transformer.from_crs(f"EPSG:{epsg_input}", "EPSG:4326", always_xy=True)
             lon, lat = transformer.transform(df['E'].values, df['N'].values)
             df['lon'], df['lat'] = lon, lat
-        except:
-            st.error("Ralat EPSG! Pastikan kod EPSG betul.")
+        except Exception as e:
+            st.error(f"Ralat EPSG: {e}")
 
+        # Tutup poligon
         df_poly = pd.concat([df, df.iloc[[0]]], ignore_index=True)
         center_lat, center_lon = df['lat'].mean(), df['lon'].mean()
 
         # 2. BINA PETA
         fig = go.Figure()
 
-        # A. LUKIS GARISAN LOT (POLIGON)
+        # A. LUKIS GARISAN LOT
         fig.add_trace(go.Scattermapbox(
             lat=df_poly['lat'], lon=df_poly['lon'],
             mode='lines+markers',
@@ -74,51 +71,51 @@ if check_password():
             name="Sempadan"
         ))
 
-        # B. LOGIK LABEL SETIAP GARISAN
-        if show_data:
-            # Offset kecil (dalam darjah) supaya teks tidak kena tepat pada garisan
-            offset = 0.000018 
-
-            for i in range(len(df_poly)-1):
-                p1, p2 = df_poly.iloc[i], df_poly.iloc[i+1]
-                
-                # Kira Bearing & Jarak (Guna meter E, N)
-                dE = p2['E'] - p1['E']
-                dN = p2['N'] - p1['N']
-                dist = np.sqrt(dE**2 + dN**2)
-                brg = np.degrees(np.arctan2(dE, dN)) % 360
-                
-                # Titik tengah garisan
-                m_lat, m_lon = (p1['lat'] + p2['lat'])/2, (p1['lon'] + p2['lon'])/2
-
-                # Masukkan Bearing & Jarak sebagai 1 label (Atas & Bawah)
-                fig.add_trace(go.Scattermapbox(
-                    lat=[m_lat], lon=[m_lon],
-                    mode='text',
-                    text=[f"<b>{decimal_to_dms(brg)}</b><br>{dist:.3f}m"],
-                    textfont=dict(size=12, color="cyan", family="Arial Black"),
-                    hoverinfo='none'
-                ))
-
-        # C. LABEL STESEN
-        if show_stn:
+        # B. PROSES LABEL SETIAP SEGMEN (Titik ke Titik)
+        # Kita buat satu loop untuk setiap garisan antara dua stesen
+        for i in range(len(df_poly)-1):
+            p1 = df_poly.iloc[i]
+            p2 = df_poly.iloc[i+1]
+            
+            # Kira Bearing & Jarak (Guna unit METER E,N)
+            dE = p2['E'] - p1['E']
+            dN = p2['N'] - p1['N']
+            dist = np.sqrt(dE**2 + dN**2)
+            brg = np.degrees(np.arctan2(dE, dN)) % 360
+            
+            # Titik Tengah untuk letak Label (Lat/Lon)
+            mid_lat = (p1['lat'] + p2['lat']) / 2
+            mid_lon = (p1['lon'] + p2['lon']) / 2
+            
+            # Tambah Label ke Peta
             fig.add_trace(go.Scattermapbox(
-                lat=df['lat'], lon=df['lon'],
-                mode='text', text=df['STN'].astype(str),
-                textposition="top right",
-                textfont=dict(size=14, color="white", family="Arial Black")
+                lat=[mid_lat], 
+                lon=[mid_lon],
+                mode='text',
+                text=[f"<b>{decimal_to_dms(brg)}</b><br>{dist:.3f}m"],
+                textfont=dict(size=12, color="cyan", family="Arial Black"),
+                hoverinfo='none'
             ))
 
-        # D. LABEL LUAS (DI TENGAH LOT)
-        if show_area:
-            area = 0.5 * np.abs(np.dot(df['E'], np.roll(df['N'], 1)) - np.dot(df['N'], np.roll(df['E'], 1)))
-            fig.add_trace(go.Scattermapbox(
-                lat=[center_lat], lon=[center_lon],
-                mode='text', text=[f"<b>LUAS:<br>{area:.2f} m²</b>"],
-                textfont=dict(size=18, color="yellow", family="Arial Black")
-            ))
+        # C. LABEL NO STESEN
+        fig.add_trace(go.Scattermapbox(
+            lat=df['lat'], lon=df['lon'],
+            mode='text', 
+            text=df['STN'].astype(str),
+            textposition="top right",
+            textfont=dict(size=14, color="white", family="Arial Black")
+        ))
 
-        # 3. TETAPAN LAYOUT MAPBOX
+        # D. LABEL LUAS (Di Tengah Poligon)
+        area = 0.5 * np.abs(np.dot(df['E'], np.roll(df['N'], 1)) - np.dot(df['N'], np.roll(df['E'], 1)))
+        fig.add_trace(go.Scattermapbox(
+            lat=[center_lat], lon=[center_lon],
+            mode='text', 
+            text=[f"<b>LUAS:<br>{area:.2f} m²</b>"],
+            textfont=dict(size=18, color="yellow", family="Arial Black")
+        ))
+
+        # 3. LAYOUT MAPBOX
         fig.update_layout(
             mapbox=dict(
                 style="white-bg",
@@ -128,15 +125,14 @@ if check_password():
                     "source": ["https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}"]
                 }],
                 center=dict(lat=center_lat, lon=center_lon),
-                zoom=zoom_level
+                zoom=zoom_val
             ),
             margin={"r":0,"t":0,"l":0,"b":0},
             height=850,
             showlegend=False
         )
 
-        # PAPARKAN PETA
         st.plotly_chart(fig, use_container_width=True)
         
     else:
-        st.error("Fail 'point.csv' tidak dijumpai. Pastikan fail ada dalam GitHub anda.")
+        st.error("Fail 'point.csv' tidak dijumpai.")
