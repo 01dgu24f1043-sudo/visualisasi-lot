@@ -20,7 +20,7 @@ with col1:
     else:
         st.warning("Fail logo tidak dijumpai di GitHub.")
 with col2:
-    st.title("SISTEM VISUALISASI LOT GEOMATIK (PUO)")
+    st.title("POLITEKNIK UNGKU OMAR")
     st.subheader("Jabatan Kejuruteraan Awam - Unit Geomatik")
 
 st.markdown("---")
@@ -174,3 +174,4 @@ if check_password():
         st.plotly_chart(fig, use_container_width=True)
     else:
         st.error(f"Fail '{file_path}' tidak dijumpai. Sila muat naik ke GitHub.")
+
