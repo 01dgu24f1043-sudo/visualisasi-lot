@@ -44,7 +44,7 @@ def transform_to_latlon(df):
     return df
 
 # --- LOADING DATA ---
-default_file = "point.csv"
+default_file = "data ukur.csv"
 df = None
 
 if os.path.exists(default_file):
@@ -107,3 +107,4 @@ if df is not None:
         area = 0.5 * np.abs(np.dot(df_poly['E'], np.roll(df_poly['N'], 1)) - np.dot(df_poly['N'], np.roll(df_poly['E'], 1)))
         st.metric("Luas Anggaran", f"{area:.3f} m²")
         st.info("Nota: Kedudukan satelit adalah anggaran berdasarkan titik rujukan (Anchor Point).")
+
