@@ -9,15 +9,18 @@ from pyproj import Transformer
 # 1. Konfigurasi Halaman
 st.set_page_config(page_title="Sistem Lot Geomatik PUO", layout="wide")
 
-# --- BAHAGIAN HEADER (LOGO & TAJUK) ---
-# Gunakan URL logo PUO yang sah atau fail lokal jika ada
-logo_url = "https://www.puo.edu.my/wp-content/uploads/2021/09/logo-puo.png"
+# --- BAHAGIAN HEADER (LOGO LOKAL & TAJUK) ---
+# Menggunakan file yang sudah ada di GitHub Anda
+logo_path = "politeknik-ungku-umar-seeklogo-removebg-preview.png"
 
 col1, col2 = st.columns([1, 5])
 with col1:
-    st.image(logo_url, width=120)
+    if os.path.exists(logo_path):
+        st.image(logo_path, width=120)
+    else:
+        st.warning("Fail logo tidak dijumpai di GitHub.")
 with col2:
-    st.title("POLITEKNIK UNGKU OMAR")
+    st.title("SISTEM VISUALISASI LOT GEOMATIK (PUO)")
     st.subheader("Jabatan Kejuruteraan Awam - Unit Geomatik")
 
 st.markdown("---")
@@ -43,7 +46,10 @@ def check_password():
 if check_password():
     # --- SIDEBAR (TETAPAN) ---
     st.sidebar.header("⚙️ Tetapan Peta")
+    
+    # Fungsi On/Off Satelit
     show_satellite = st.sidebar.checkbox("Paparkan Imej Satelit", value=True)
+    
     epsg_input = st.sidebar.text_input("Kod EPSG (Perak: 4390):", value="4390")
     zoom_val = st.sidebar.slider("🔍 Zoom:", 15, 22, 20)
     
@@ -52,6 +58,7 @@ if check_password():
     show_brg_dist = st.sidebar.checkbox("Paparkan Bearing & Jarak", value=True)
     show_area = st.sidebar.checkbox("Paparkan Luas Lot", value=True)
 
+    # Fungsi Tukar Decimal ke DMS
     def decimal_to_dms(deg):
         d = int(deg)
         m = int((deg - d) * 60)
@@ -76,8 +83,8 @@ if check_password():
         df_poly = pd.concat([df, df.iloc[[0]]], ignore_index=True)
         center_lat, center_lon = df['lat'].mean(), df['lon'].mean()
 
-        # --- EKSPORT QGIS ---
-        st.sidebar.subheader("📤 Eksport")
+        # --- EKSPORT QGIS (GEOJSON) ---
+        st.sidebar.subheader("📤 Eksport Data")
         coordinates = [[row['lon'], row['lat']] for idx, row in df_poly.iterrows()]
         geojson_data = {
             "type": "FeatureCollection",
@@ -88,7 +95,7 @@ if check_password():
             }]
         }
         st.sidebar.download_button(
-            label="Download GeoJSON (QGIS)",
+            label="Download GeoJSON (untuk QGIS)",
             data=json.dumps(geojson_data),
             file_name="lot_puo.geojson",
             mime="application/json"
@@ -97,16 +104,17 @@ if check_password():
         # 2. BINA PETA
         fig = go.Figure()
 
-        # GARISAN LOT
+        # A. LUKIS GARISAN LOT
         fig.add_trace(go.Scattermapbox(
             lat=df_poly['lat'], lon=df_poly['lon'],
             mode='lines+markers',
             fill="toself", fillcolor="rgba(255, 255, 0, 0.15)",
             line=dict(width=3, color='yellow'),
             marker=dict(size=8, color='red'),
+            name="Sempadan"
         ))
 
-        # LABEL BEARING & JARAK (WAJIB MUNCUL)
+        # B. LABEL BEARING & JARAK (WAJIB MUNCUL)
         if show_brg_dist:
             for i in range(len(df_poly)-1):
                 p1, p2 = df_poly.iloc[i], df_poly.iloc[i+1]
@@ -123,7 +131,7 @@ if check_password():
                     showlegend=False
                 ))
 
-        # LABEL NO STESEN
+        # C. LABEL NO STESEN
         if show_stn:
             fig.add_trace(go.Scattermapbox(
                 lat=df['lat'], lon=df['lon'],
@@ -133,7 +141,7 @@ if check_password():
                 showlegend=False
             ))
 
-        # LABEL LUAS
+        # D. LABEL LUAS
         if show_area:
             area = 0.5 * np.abs(np.dot(df['E'], np.roll(df['N'], 1)) - np.dot(df['N'], np.roll(df['E'], 1)))
             fig.add_trace(go.Scattermapbox(
@@ -143,7 +151,7 @@ if check_password():
                 showlegend=False
             ))
 
-        # 3. LAYOUT
+        # 3. LAYOUT & LOGIK SATELIT
         mapbox_style = "white-bg"
         layers = []
         if show_satellite:
@@ -152,11 +160,17 @@ if check_password():
             mapbox_style = "carto-positron"
 
         fig.update_layout(
-            mapbox=dict(style=mapbox_style, layers=layers, center=dict(lat=center_lat, lon=center_lon), zoom=zoom_val),
-            margin={"r":0,"t":0,"l":0,"b":0}, height=800, showlegend=False
+            mapbox=dict(
+                style=mapbox_style,
+                layers=layers,
+                center=dict(lat=center_lat, lon=center_lon),
+                zoom=zoom_val
+            ),
+            margin={"r":0,"t":0,"l":0,"b":0},
+            height=850,
+            showlegend=False
         )
 
         st.plotly_chart(fig, use_container_width=True)
     else:
-        st.error("Fail 'point.csv' tidak dijumpai.")
-
+        st.error(f"Fail '{file_path}' tidak dijumpai. Sila muat naik ke GitHub.")
