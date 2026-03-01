@@ -17,7 +17,7 @@ col1, col2 = st.columns([1, 5])
 with col1:
     st.image(logo_url, width=120)
 with col2:
-    st.title("SISTEM VISUALISASI LOT GEOMATIK (PUO)")
+    st.title("POLITEKNIK UNGKU OMAR")
     st.subheader("Jabatan Kejuruteraan Awam - Unit Geomatik")
 
 st.markdown("---")
@@ -159,3 +159,4 @@ if check_password():
         st.plotly_chart(fig, use_container_width=True)
     else:
         st.error("Fail 'point.csv' tidak dijumpai.")
+
