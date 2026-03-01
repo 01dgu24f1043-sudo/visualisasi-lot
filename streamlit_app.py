@@ -15,7 +15,7 @@ logo_path = "politeknik-ungku-umar-seeklogo-removebg-preview.png"
 col1, col2 = st.columns([1, 5])
 with col1:
     if os.path.exists(logo_path):
-        st.image(logo_path, width=120)
+        st.image(logo_path, width=150)
     else:
         st.info("Logo PUO")
 with col2:
@@ -178,4 +178,5 @@ if check_password():
             st.error(f"Gagal memproses fail: {e}")
     else:
         st.info("Sila muat naik fail CSV di sidebar untuk memulakan visualisasi.")
+
 
