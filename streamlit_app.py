@@ -8,20 +8,17 @@ import os
 st.set_page_config(page_title="Visualisasi LOT 11487 - PUO", layout="centered")
 
 # --- HEADER: TAJUK & LOGO ---
-# Kita guna 3 kolom: kiri untuk logo, tengah untuk tajuk, kanan sebagai pengimbang
 col1, col2, col3 = st.columns([1, 3, 1])
 
-logo_path = "politeknik-ungku-umar-seeklogo-removebg-preview.png" # Pastikan nama fail betul
+logo_path = "politeknik-ungku-umar-seeklogo-removebg-preview.png" 
 
 with col1:
-    # Logo di sebelah kiri
     if os.path.exists(logo_path):
         st.image(logo_path, width=200)
     else:
         st.write("PUO")
 
 with col2:
-    # Tajuk di tengah
     st.markdown(
         """
         <div style='text-align: center;'>
@@ -31,8 +28,6 @@ with col2:
         """, 
         unsafe_allow_html=True
     )
-
-# col3 dibiarkan kosong supaya tajuk tetap berada di tengah (centering)
 
 st.markdown("---")
 
@@ -44,11 +39,30 @@ def decimal_to_dms(deg):
     if m >= 60: m = 0; d += 1
     return f"{d}°{m:02d}'{s:02d}\""
 
-uploaded_file = st.file_uploader("Muat naik fail CSV (E, N)", type=["csv"])
+# --- BAHAGIAN AUTO-UPLOAD ---
+# Nama fail yang anda mahu sistem baca secara automatik
+default_file = "point.csv"
+
+# Kita masih kekalkan uploader sebagai pilihan (optional)
+uploaded_file = st.file_uploader("Muat naik fail CSV baru (Jika mahu tukar)", type=["csv"])
+
+# Logik untuk memilih sumber data
+df = None
 
 if uploaded_file is not None:
+    # Jika pengguna muat naik fail secara manual, gunakan fail tersebut
+    df = pd.read_csv(uploaded_file)
+    st.info("Memaparkan data daripada fail yang dimuat naik.")
+elif os.path.exists(default_file):
+    # Jika tiada fail dimuat naik, cari fail 'data ukur.csv' dalam folder
+    df = pd.read_csv(default_file)
+    st.success(f"Fail '{default_file}' dikesan dan dimuatkan secara automatik.")
+else:
+    st.warning("Sila pastikan fail 'data ukur.csv' berada dalam folder yang sama atau muat naik fail secara manual.")
+
+# --- PROSES DATA & VISUALISASI ---
+if df is not None:
     try:
-        df = pd.read_csv(uploaded_file)
         if 'E' in df.columns and 'N' in df.columns:
             df_poly = pd.concat([df, df.iloc[[0]]], ignore_index=True)
             centroid_x, centroid_y = df['E'].mean(), df['N'].mean()
@@ -111,7 +125,7 @@ if uploaded_file is not None:
                 label_off = 0.7
                 fig.add_annotation(
                     x=x1 + (dx_out/mag)*label_off, y=y1 + (dy_out/mag)*label_off,
-                    text=f"{i+1}", showarrow=False,
+                    text=f"{df['STN'].iloc[i]}", showarrow=False,
                     font=dict(size=11, color="red", family="Arial Black"),
                     bgcolor="white", borderpad=2
                 )
@@ -134,12 +148,8 @@ if uploaded_file is not None:
             st.plotly_chart(fig, use_container_width=True)
             st.success(f"Selesai! LOT 11487 telah dijana.")
             
+        else:
+            st.error("Fail CSV tidak mempunyai kolum 'E' atau 'N'.")
+            
     except Exception as e:
-
         st.error(f"Ralat: {e}")
-
-
-
-
-
-
