@@ -3,9 +3,10 @@ import pandas as pd
 import plotly.graph_objects as go
 import numpy as np
 import os
-from pyproj import Geod
+from pyproj import Transformer
 
-st.set_page_config(page_title="Sistem Lot Geomatik", layout="wide")
+# 1. Konfigurasi Halaman
+st.set_page_config(page_title="Sistem Lot Geomatik PUO", layout="wide")
 
 # --- FUNGSI KATA LALUAN ---
 def check_password():
@@ -26,12 +27,15 @@ def check_password():
     return True
 
 if check_password():
+    # --- SIDEBAR ---
     st.sidebar.header("⚙️ Tetapan Peta")
+    epsg_input = st.sidebar.text_input("Kod EPSG (Cth Cassini Perak: 4390):", value="4390")
     zoom_val = st.sidebar.slider("🔍 Tahap Zoom:", 10, 22, 20)
     
     st.sidebar.subheader("🏷️ Tetapan Label")
     show_stn = st.sidebar.checkbox("Label Stesen", value=True)
-    show_data = st.sidebar.checkbox("Label Bearing & Jarak", value=True)
+    show_brg = st.sidebar.checkbox("Label Bearing (Atas Garisan)", value=True)
+    show_dist = st.sidebar.checkbox("Label Jarak (Bawah Garisan)", value=True)
     show_area = st.sidebar.checkbox("Label Luas", value=True)
 
     def decimal_to_dms(deg):
@@ -41,80 +45,102 @@ if check_password():
         if s >= 60: s = 0; m += 1
         return f"{d}°{m:02d}'{s:02d}\""
 
-    if os.path.exists("point.csv"):
-        df = pd.read_csv("point.csv")
-        df['lon'] = df['x']
-        df['lat'] = df['y']
-        
+    # --- PEMPROSESAN DATA ---
+    file_path = "point.csv"
+    if os.path.exists(file_path):
+        df = pd.read_csv(file_path)
+        df.columns = df.columns.str.strip() # Bersihkan nama kolum
+
+        # 2. TRANSFORMASI KOORDINAT (METER -> WGS84)
+        try:
+            # Transformer dari Cassini/RSO ke WGS84
+            transformer = Transformer.from_crs(f"EPSG:{epsg_input}", "EPSG:4326", always_xy=True)
+            lon, lat = transformer.transform(df['E'].values, df['N'].values)
+            df['lon'], df['lat'] = lon, lat
+        except Exception as e:
+            st.sidebar.error(f"Ralat EPSG: {e}")
+            df['lon'], df['lat'] = 0.0, 0.0
+
+        # Tutup poligon
         df_poly = pd.concat([df, df.iloc[[0]]], ignore_index=True)
         center_lat, center_lon = df['lat'].mean(), df['lon'].mean()
 
+        # 3. BINA VISUALISASI
         fig = go.Figure()
 
-        # 1. LUKIS POLIGON
+        # Lukisan Poligon
         fig.add_trace(go.Scattermapbox(
             lat=df_poly['lat'], lon=df_poly['lon'],
             mode='lines+markers',
-            fill="toself", fillcolor="rgba(255, 255, 0, 0.1)",
-            line=dict(width=2, color='yellow'),
+            fill="toself", fillcolor="rgba(255, 255, 0, 0.15)",
+            line=dict(width=3, color='yellow'),
             marker=dict(size=8, color='red'),
-            hoverinfo='none'
+            name="Sempadan"
         ))
 
-        geod = Geod(ellps="WGS84")
+        # OFFSET LOGIK UNTUK BEARING & JARAK
+        # Kita gunakan offset kecil dalam darjah (anggaran 1.5 meter)
+        offset_val = 0.000015 
 
-        # 2. LABEL STESEN
+        for i in range(len(df_poly)-1):
+            p1 = df_poly.iloc[i]
+            p2 = df_poly.iloc[i+1]
+            
+            # Pengiraan Geometrik Dasar (Meter)
+            dE = p2['E'] - p1['E']
+            dN = p2['N'] - p1['N']
+            dist = np.sqrt(dE**2 + dN**2)
+            brg = np.degrees(np.arctan2(dE, dN)) % 360
+            
+            # Titik Tengah (WGS84)
+            mid_lat = (p1['lat'] + p2['lat']) / 2
+            mid_lon = (p1['lon'] + p2['lon']) / 2
+            
+            # Vector Normal untuk Offset (Pegang Teks Atas/Bawah)
+            # Menghitung arah tegak lurus terhadap garisan
+            norm = np.sqrt(dE**2 + dN**2)
+            if norm != 0:
+                off_lon = (-dN / norm) * offset_val
+                off_lat = (dE / norm) * offset_val
+            else:
+                off_lon, off_lat = 0, 0
+
+            # Label Bearing (Atas - Offset Positif)
+            if show_brg:
+                fig.add_trace(go.Scattermapbox(
+                    lat=[mid_lat + off_lat], lon=[mid_lon + off_lon],
+                    mode='text', text=[decimal_to_dms(brg)],
+                    textfont=dict(size=11, color="cyan", family="Arial Black")
+                ))
+
+            # Label Jarak (Bawah - Offset Negatif)
+            if show_dist:
+                fig.add_trace(go.Scattermapbox(
+                    lat=[mid_lat - off_lat], lon=[mid_lon - off_lon],
+                    mode='text', text=[f"{dist:.3f}m"],
+                    textfont=dict(size=10, color="yellow", family="Arial")
+                ))
+
+        # Label Stesen
         if show_stn:
             fig.add_trace(go.Scattermapbox(
                 lat=df['lat'], lon=df['lon'],
                 mode='text', text=df['STN'].astype(str),
-                textposition="top center",
-                textfont=dict(size=13, color="white", family="Arial Black")
+                textposition="top right",
+                textfont=dict(size=14, color="white", family="Arial Black")
             ))
 
-        # 3. BEARING & JARAK (DENGAN ROTASI)
-        if show_data:
-            for i in range(len(df_poly)-1):
-                p1, p2 = df_poly.iloc[i], df_poly.iloc[i+1]
-                
-                # Kira Bearing & Jarak Sebenar (Geodetik)
-                fwd_az, back_az, dist = geod.inv(p1['lon'], p1['lat'], p2['lon'], p2['lat'])
-                brg = fwd_az % 360
-                
-                # Titik Tengah untuk Label
-                mid_lat = (p1['lat'] + p2['lat']) / 2
-                mid_lon = (p1['lon'] + p2['lon']) / 2
-                
-                # Kira Sudut Rotasi (Skrin)
-                # Kita guna beza koordinat mudah untuk dapatkan angle visual
-                d_lon = p2['lon'] - p1['lon']
-                d_lat = p2['lat'] - p1['lat']
-                angle = np.degrees(np.arctan2(d_lat, d_lon))
-                
-                # Adjust supaya teks tidak terbalik (upside down)
-                if angle > 90: angle -= 180
-                elif angle < -90: angle += 180
-
-                # Tambah Label Bearing (Atas Garisan) & Jarak (Bawah Garisan)
-                fig.add_trace(go.Scattermapbox(
-                    lat=[mid_lat], lon=[mid_lon],
-                    mode='text',
-                    text=[f"{decimal_to_dms(brg)}<br>{dist:.2f}m"],
-                    textfont=dict(size=11, color="cyan", family="Arial Black"),
-                    hoverinfo='none'
-                ))
-
-        # 4. LABEL LUAS
+        # Label Luas
         if show_area:
-            lons, lats = df['lon'].tolist(), df['lat'].tolist()
-            area_m2, perim = geod.polygon_area_perimeter(lons, lats)
+            # Shoelace formula untuk meter
+            area = 0.5 * np.abs(np.dot(df['E'], np.roll(df['N'], 1)) - np.dot(df['N'], np.roll(df['E'], 1)))
             fig.add_trace(go.Scattermapbox(
                 lat=[center_lat], lon=[center_lon],
-                mode='text', text=[f"LUAS: {abs(area_m2):.2f} m²"],
-                textfont=dict(size=16, color="yellow", family="Arial Black")
+                mode='text', text=[f"LUAS: {area:.2f} m²"],
+                textfont=dict(size=18, color="yellow", family="Arial Black")
             ))
 
-        # 5. LAYOUT
+        # 4. LAYOUT PETA
         fig.update_layout(
             mapbox=dict(
                 style="white-bg",
@@ -129,6 +155,7 @@ if check_password():
         )
 
         st.plotly_chart(fig, use_container_width=True)
+        st.write("### 📋 Data Lot (Meter)")
+        st.dataframe(df[['STN', 'E', 'N']])
     else:
-        st.error("Fail 'data ukur.csv' tidak dijumpai.")
-
+        st.error("Fail 'point.csv' tidak dijumpai dalam direktori.")
