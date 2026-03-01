@@ -27,10 +27,14 @@ def check_password():
     return True
 
 if check_password():
-    # --- SIDEBAR ---
+    # --- SIDEBAR (TETAPAN) ---
     st.sidebar.header("⚙️ Tetapan Peta")
+    
+    # 1. TAMBAHAN: On/Off Satelit
+    show_satellite = st.sidebar.checkbox("Paparkan Imej Satelit", value=True)
+    
     epsg_input = st.sidebar.text_input("Kod EPSG (Perak: 4390):", value="4390")
-    zoom_val = st.sidebar.slider("🔍 Zoom:", 15, 22, 19)
+    zoom_val = st.sidebar.slider("🔍 Zoom:", 15, 22, 20)
     
     st.sidebar.subheader("🏷️ Kawalan Label")
     show_stn = st.sidebar.checkbox("Paparkan No. Stesen", value=True)
@@ -50,7 +54,7 @@ if check_password():
         df = pd.read_csv(file_path)
         df.columns = df.columns.str.strip()
 
-        # TRANSFORMASI KE WGS84
+        # TRANSFORMASI KOORDINAT
         try:
             transformer = Transformer.from_crs(f"EPSG:{epsg_input}", "EPSG:4326", always_xy=True)
             lon, lat = transformer.transform(df['E'].values, df['N'].values)
@@ -64,30 +68,29 @@ if check_password():
         # 2. BINA PETA
         fig = go.Figure()
 
-        # A. LUKIS GARISAN & TITIK (BASE LAYER)
+        # A. LUKIS GARISAN LOT
         fig.add_trace(go.Scattermapbox(
             lat=df_poly['lat'], lon=df_poly['lon'],
             mode='lines+markers',
-            fill="toself", fillcolor="rgba(255, 255, 0, 0.1)",
+            fill="toself", fillcolor="rgba(255, 255, 0, 0.15)",
             line=dict(width=3, color='yellow'),
             marker=dict(size=8, color='red'),
-            name="Lot"
+            name="Sempadan"
         ))
 
-        # B. PAKSA LABEL BEARING & JARAK MUNCUL
+        # B. LABEL BEARING & JARAK (WAJIB MUNCUL)
         if show_brg_dist:
             for i in range(len(df_poly)-1):
                 p1, p2 = df_poly.iloc[i], df_poly.iloc[i+1]
                 
-                # Pengiraan Meter
+                # Kira Bearing & Jarak (Unit Meter)
                 dE, dN = p2['E'] - p1['E'], p2['N'] - p1['N']
                 dist = np.sqrt(dE**2 + dN**2)
                 brg = np.degrees(np.arctan2(dE, dN)) % 360
                 
-                # Titik Tengah (WGS84)
+                # Titik Tengah
                 m_lat, m_lon = (p1['lat'] + p2['lat'])/2, (p1['lon'] + p2['lon'])/2
                 
-                # KUNCI UTAMA: Setiap label adalah trace 'text' yang berasingan
                 fig.add_trace(go.Scattermapbox(
                     lat=[m_lat], lon=[m_lon],
                     mode='text',
@@ -102,7 +105,7 @@ if check_password():
                 lat=df['lat'], lon=df['lon'],
                 mode='text', text=df['STN'].astype(str),
                 textposition="top right",
-                textfont=dict(size=13, color="white", family="Arial Black"),
+                textfont=dict(size=14, color="white", family="Arial Black"),
                 showlegend=False
             ))
 
@@ -116,20 +119,32 @@ if check_password():
                 showlegend=False
             ))
 
-        # 3. LAYOUT
+        # 3. LAYOUT & LOGIK SATELIT
+        mapbox_style = "white-bg"
+        layers = []
+        
+        if show_satellite:
+            layers = [{
+                "below": 'traces',
+                "sourcetype": "raster",
+                "source": ["https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}"] # Google Hybrid
+            }]
+        else:
+            mapbox_style = "carto-positron" # Peta jalan biasa (putih bersih)
+
         fig.update_layout(
             mapbox=dict(
-                style="white-bg",
-                layers=[{
-                    "below": 'traces', "sourcetype": "raster",
-                    "source": ["https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}"]
-                }],
+                style=mapbox_style,
+                layers=layers,
                 center=dict(lat=center_lat, lon=center_lon),
                 zoom=zoom_val
             ),
-            margin={"r":0,"t":0,"l":0,"b":0}, height=800, showlegend=False
+            margin={"r":0,"t":0,"l":0,"b":0},
+            height=850,
+            showlegend=False
         )
 
         st.plotly_chart(fig, use_container_width=True)
+        
     else:
         st.error("Fail 'point.csv' tidak dijumpai.")
