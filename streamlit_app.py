@@ -4,27 +4,25 @@ import plotly.graph_objects as go
 import os
 
 # 1. Konfigurasi Halaman
-st.set_page_config(page_title="Visualisasi Lot WGS84", layout="wide")
+st.set_page_config(page_title="PUO - Visualisasi Lot", layout="wide")
 
-st.markdown("<h2 style='text-align: center;'>🛰️ Sistem Lot Poligon (WGS84)</h2>", unsafe_allow_html=True)
+st.markdown("<h2 style='text-align: center;'>🛰️ Paparan Lot Poligon (WGS84)</h2>", unsafe_allow_html=True)
 st.markdown("---")
 
-# --- PEMPROSESAN DATA ---
 default_file = "data ukur.csv"
 
 if os.path.exists(default_file):
-    # Membaca fail CSV
     df = pd.read_csv(default_file)
     
-    # 2. Penyelarasan Kolum (PENTING!)
-    # Kita tukar 'x' kepada 'lon' dan 'y' kepada 'lat'
+    # Memastikan kolum x dan y wujud
     if 'x' in df.columns and 'y' in df.columns:
+        # PENTING: Penukaran nama kolum
         df_plot = df.rename(columns={'x': 'lon', 'y': 'lat'})
         
-        # Menutup poligon (sambung titik terakhir ke titik pertama)
+        # Tutup poligon
         df_poly = pd.concat([df_plot, df_plot.iloc[[0]]], ignore_index=True)
 
-        # 3. BINA VISUALISASI MAPBOX
+        # 2. BINA PETA (Guna Mapbox Built-in Style)
         fig = go.Figure()
 
         # Tambah Poligon
@@ -33,48 +31,42 @@ if os.path.exists(default_file):
             lon=df_poly['lon'],
             mode='lines+markers+text',
             fill="toself",
-            fillcolor="rgba(0, 255, 255, 0.3)", # Isi biru lutsinar
-            marker=dict(size=10, color='red'),
+            fillcolor="rgba(0, 255, 255, 0.3)", # Biru lutsinar
+            marker=dict(size=12, color='red'),
             line=dict(width=3, color='yellow'),
             text=df_poly['STN'],
             textposition="top right",
             hoverinfo='text+lat+lon'
         ))
 
-        # 4. SETTING PETA SATELIT (VERSI PALING STABIL)
+        # 3. SETTING MAPBOX (Pilihan yang paling stabil)
         fig.update_layout(
+            # 'open-street-map' adalah yang paling stabil dan tidak akan putih
+            # Jika anda mahu satelit, guna 'stamen-terrain' atau 'carto-positron'
+            mapbox_style="open-street-map", 
             mapbox=dict(
-                style="white-bg", 
-                layers=[
-                    {
-                        "below": 'traces',
-                        "sourcetype": "raster",
-                        "sourceattribution": "Google Satellite",
-                        "source": [
-                            # Menggunakan pelayan Google Satellite Hybrid
-                            "https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}"
-                        ]
-                    }
-                ],
-                # Fokuskan peta pada purata koordinat anda
                 center=dict(lat=df_plot['lat'].mean(), lon=df_plot['lon'].mean()),
-                zoom=18 
+                zoom=18
             ),
             margin={"r":0,"t":0,"l":0,"b":0},
-            height=700,
-            showlegend=False
+            height=700
         )
 
-        # Paparkan Peta
         st.plotly_chart(fig, use_container_width=True)
         
-        # Paparkan Jadual Data di bawah untuk semakan
-        st.write("### 📋 Data Koordinat Terkini")
-        st.dataframe(df_plot[['STN', 'lat', 'lon']])
+        # Paparkan Data di bawah peta (Backup jika peta gagal)
+        st.write("### 📋 Semakan Data Koordinat")
+        st.dataframe(df_plot)
         
     else:
-        st.error("Ralat: Kolum 'x' dan 'y' tidak dijumpai. Sila pastikan fail CSV anda mempunyai tajuk kolum yang betul.")
+        st.error("Ralat: Pastikan fail CSV mempunyai kolum 'x' dan 'y'.")
 else:
-    st.error(f"Fail '{default_file}' tidak dijumpai. Sila muat naik fail tersebut ke GitHub repository anda.")
+    st.error("Fail 'data ukur.csv' tidak dijumpai. Sila muat naik ke GitHub.")
 
-st.info("💡 **Tips:** Jika peta masih putih, cuba 'zoom out' atau 'refresh' pelayar web anda.")
+# --- SELESAIKAN ISU PUTIH ---
+st.info("""
+**Jika skrin masih putih, ini langkah terakhir:**
+1. **Refresh Browser**: Tekan Ctrl+F5 (Windows) atau Cmd+Shift+R (Mac).
+2. **Uji di Telefon**: Cuba buka link aplikasi anda di telefon pintar. Jika di telefon muncul, bermakna WiFi/Computer anda yang menyekat imej tersebut.
+3. **Cek Fail CSV**: Pastikan tiada baris kosong di dalam fail CSV anda.
+""")
