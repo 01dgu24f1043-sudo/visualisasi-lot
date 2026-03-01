@@ -3,64 +3,45 @@ import pandas as pd
 import plotly.graph_objects as go
 import os
 
-st.set_page_config(page_title="PUO - Satellite Viewer", layout="wide")
-
-# Header Ringkas
-st.markdown("<h2 style='text-align: center;'>🛰️ Paparan Satelit Lot Poligon</h2>", unsafe_allow_html=True)
-
-default_file = "data ukur.csv"
-
-if os.path.exists(default_file):
-    df = pd.read_csv(default_file)
+# Membaca data
+if os.path.exists("data ukur.csv"):
+    df = pd.read_csv("data ukur.csv")
     
-    # Tukar nama kolum untuk Plotly (x=lon, y=lat)
-    df = df.rename(columns={'x': 'lon', 'y': 'lat'})
+    # 1. Tukar koordinat ke format yang betul
+    # x = lon (102.52...), y = lat (2.10...)
+    df_plot = df.rename(columns={'x': 'lon', 'y': 'lat'})
     
-    # Tutup poligon
-    df_poly = pd.concat([df, df.iloc[[0]]], ignore_index=True)
+    # 2. Tutup poligon
+    df_poly = pd.concat([df_plot, df_plot.iloc[[0]]], ignore_index=True)
 
-    # BINA PETA
     fig = go.Figure()
 
-    # 1. Tambah Poligon & Titik
+    # 3. Lukis Poligon (Guna Scattermapbox)
     fig.add_trace(go.Scattermapbox(
         lat=df_poly['lat'],
         lon=df_poly['lon'],
-        mode='lines+markers+text',
+        mode='lines+markers',
         fill="toself",
-        fillcolor="rgba(0, 255, 255, 0.4)", # Biru Cyan lutsinar
-        marker=dict(size=12, color='red'),
-        line=dict(width=3, color='yellow'),
-        text=df_poly['STN'],
-        textposition="top right",
-        hoverinfo='text'
+        fillcolor="rgba(255, 255, 0, 0.4)", # Kuning terang
+        line=dict(width=4, color='red'),    # Garisan merah tebal
+        marker=dict(size=10),
+        text=df_poly['STN']
     ))
 
-    # 2. KONFIGURASI LAYOUT (Penyelesaian isu putih)
+    # 4. Layout
     fig.update_layout(
         mapbox=dict(
-            # Kita guna 'open-street-map' sebagai dasar supaya tidak kosong
-            style="open-street-map", 
-            layers=[
-                {
-                    "below": 'traces',
-                    "sourcetype": "raster",
-                    "sourceattribution": "Esri World Imagery",
-                    "source": [
-                        # Pelayan alternatif (ArcGIS Online) yang sangat stabil
-                        "https://services.arcgisonline.com/arcgis/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
-                    ]
-                }
-            ],
-            center=dict(lat=df['lat'].mean(), lon=df['lon'].mean()),
-            zoom=18 # Jika masih putih, cuba kurangkan ke 15
+            style="white-bg", # Mesti 'white-bg' untuk layer custom
+            layers=[{
+                "below": 'traces',
+                "sourcetype": "raster",
+                "source": ["https://services.arcgisonline.com/arcgis/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"]
+            }],
+            center=dict(lat=df_plot['lat'].mean(), lon=df_plot['lon'].mean()),
+            zoom=19
         ),
         margin={"r":0,"t":0,"l":0,"b":0},
-        height=700
+        height=600
     )
 
     st.plotly_chart(fig, use_container_width=True)
-    st.info("Jika peta masih putih: 1. Pastikan internet stabil. 2. Cuba buka di Google Chrome mod 'Incognito'.")
-
-else:
-    st.error("Fail 'data ukur.csv' tidak dijumpai.")
