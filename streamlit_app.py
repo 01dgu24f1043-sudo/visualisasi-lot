@@ -3,13 +3,10 @@ import pandas as pd
 import plotly.graph_objects as go
 import numpy as np
 import os
-try:
-    from pyproj import Transformer
-except ImportError:
-    st.error("Sila tambah 'pyproj' dalam fail requirements.txt di GitHub")
+from pyproj import Geod # Gunakan Geod untuk jarak/bearing tepat pada glob
 
 # 1. Konfigurasi Halaman
-st.set_page_config(page_title="Sistem Lot Cassini Perak", layout="wide")
+st.set_page_config(page_title="Sistem Lot Geomatik", layout="wide")
 
 # --- FUNGSI KATA LALUAN ---
 def check_password():
@@ -32,7 +29,8 @@ def check_password():
 if check_password():
     # --- SIDEBAR ---
     st.sidebar.header("⚙️ Tetapan Peta")
-    epsg_code = st.sidebar.text_input("Kod EPSG (Cth Perak: 4390):", value="4390")
+    # Memandangkan data anda 102.52, 2.10, ia ADALAH 4326 (WGS84)
+    epsg_code = st.sidebar.text_input("Kod EPSG (Data WGS84 gunakan 4326):", value="4326")
     zoom_val = st.sidebar.slider("🔍 Tahap Zoom:", 10, 22, 19)
     
     st.sidebar.subheader("🏷️ Tetapan Label")
@@ -48,23 +46,15 @@ if check_password():
         return f"{d}°{m:02d}'{s:02d}\""
 
     # --- LOADING DATA ---
-    if os.path.exists("point.csv"):
-        df = pd.read_csv("point.csv")
+    if os.path.exists("data ukur.csv"):
+        df = pd.read_csv("data ukur.csv")
         
-        # TUKAR x -> E, y -> N untuk paparan
+        # Penamaan semula untuk paparan (x=E, y=N)
         df = df.rename(columns={'x': 'E', 'y': 'N'})
         
-        # TRANSFORMASI KOORDINAT (CASSINI TO WGS84)
-        try:
-            # Transformer dari Cassini (EPSG:4390) ke WGS84 (EPSG:4326)
-            transformer = Transformer.from_crs(f"EPSG:{epsg_code}", "EPSG:4326", always_xy=True)
-            # Dalam pyproj, always_xy=True bermaksud (East, North) -> (Lon, Lat)
-            lon, lat = transformer.transform(df['E'].values, df['N'].values)
-            df['lon'], df['lat'] = lon, lat
-        except Exception as e:
-            st.sidebar.error(f"Ralat Transformasi: {e}")
-            # Fallback jika gagal (anggap data sudah lat/lon)
-            df['lon'], df['lat'] = df['E'], df['N']
+        # Koordinat untuk Plotly (Lon/Lat)
+        df['lon'] = df['E']
+        df['lat'] = df['N']
 
         df_poly = pd.concat([df, df.iloc[[0]]], ignore_index=True)
         center_lat, center_lon = df['lat'].mean(), df['lon'].mean()
@@ -91,31 +81,36 @@ if check_password():
                 textfont=dict(size=14, color="white")
             ))
 
-        # Trace 3: Bearing & Jarak
+        # Trace 3: Bearing & Jarak (Guna Geod untuk koordinat darjah)
         if show_brg_dist:
+            geod = Geod(ellps="WGS84")
             lats_mid, lons_mid, texts_mid = [], [], []
             for i in range(len(df_poly)-1):
                 p1, p2 = df_poly.iloc[i], df_poly.iloc[i+1]
+                
+                # Kira Bearing & Jarak Geodetik (tepat untuk Lat/Lon)
+                # fwd_azimuth adalah bearing dari p1 ke p2
+                fwd_azimuth, back_azimuth, distance = geod.inv(p1['lon'], p1['lat'], p2['lon'], p2['lat'])
+                
+                brg = fwd_azimuth % 360
+                
                 lats_mid.append((p1['lat'] + p2['lat']) / 2)
                 lons_mid.append((p1['lon'] + p2['lon']) / 2)
-                
-                dE, dN = p2['E'] - p1['E'], p2['N'] - p1['N']
-                dist = np.sqrt(dE**2 + dN**2)
-                brg = np.degrees(np.arctan2(dE, dN)) % 360
-                texts_mid.append(f"<b>{decimal_to_dms(brg)}<br>{dist:.2f}m</b>")
+                texts_mid.append(f"<b>{decimal_to_dms(brg)}<br>{distance:.2f}m</b>")
             
             fig.add_trace(go.Scattermapbox(
                 lat=lats_mid, lon=lons_mid,
                 mode='text', text=texts_mid,
-                textfont=dict(size=10, color="cyan")
+                textfont=dict(size=11, color="cyan")
             ))
 
-        # Trace 4: Luas
+        # Trace 4: Luas (Guna formula Geodetik untuk WGS84)
         if show_area:
-            area = 0.5 * np.abs(np.dot(df['E'], np.roll(df['N'], 1)) - np.dot(df['N'], np.roll(df['E'], 1)))
+            geod = Geod(ellps="WGS84")
+            area_m2, perimeter = geod.geometry_area_perimeter(df['lon'], df['lat'])
             fig.add_trace(go.Scattermapbox(
                 lat=[center_lat], lon=[center_lon],
-                mode='text', text=[f"LUAS: {area:.2f} m²"],
+                mode='text', text=[f"LUAS: {abs(area_m2):.2f} m²"],
                 textfont=dict(size=18, color="yellow", family="Arial Black")
             ))
 
@@ -134,8 +129,7 @@ if check_password():
         )
 
         st.plotly_chart(fig, use_container_width=True)
-        
-        st.write("### 📋 Data Koordinat (Cassini Perak)")
-        st.dataframe(df[['STN', 'N', 'E', 'lat', 'lon']])
+        st.write("### 📋 Data Koordinat (N, E)")
+        st.dataframe(df[['STN', 'N', 'E']])
     else:
         st.error("Fail 'data ukur.csv' tidak dijumpai.")
