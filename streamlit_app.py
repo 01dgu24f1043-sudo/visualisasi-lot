@@ -19,7 +19,7 @@ with col1:
     else:
         st.info("Logo PUO")
 with col2:
-    st.title("SISTEM VISUALISASI LOT GEOMATIK (PUO)")
+    st.title("POLITEKNIK UNGKU OMAR")
     st.subheader("Jabatan Kejuruteraan Awam - Unit Geomatik")
 
 st.markdown("---")
@@ -171,10 +171,11 @@ if check_password():
                 st.plotly_chart(fig, use_container_width=True)
                 
                 # Papar data CSV di bawah peta sebagai rujukan
-                st.write("### 📊 Jadual Data Terpapar")
+                st.write("### 📊 Jadual Data")
                 st.dataframe(df[['STN', 'E', 'N']], use_container_width=True)
                 
         except Exception as e:
             st.error(f"Gagal memproses fail: {e}")
     else:
         st.info("Sila muat naik fail CSV di sidebar untuk memulakan visualisasi.")
+
