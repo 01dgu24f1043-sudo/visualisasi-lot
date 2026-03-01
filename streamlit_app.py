@@ -27,12 +27,17 @@ def check_password():
     return True
 
 if check_password():
-    # --- SIDEBAR ---
+    # --- SIDEBAR (TETAPAN PETA & LABEL) ---
     st.sidebar.header("⚙️ Tetapan Peta")
-    # Guna 4390 untuk Perak (Berdasarkan data point.csv anda)
     epsg_input = st.sidebar.text_input("Kod EPSG (Perak: 4390):", value="4390")
     zoom_val = st.sidebar.slider("🔍 Zoom:", 15, 22, 20)
+    
+    st.sidebar.subheader("🏷️ Kawalan Label")
+    show_stn = st.sidebar.checkbox("Paparkan No. Stesen", value=True)
+    show_brg_dist = st.sidebar.checkbox("Paparkan Bearing & Jarak", value=True)
+    show_area = st.sidebar.checkbox("Paparkan Luas Lot", value=True)
 
+    # Fungsi Tukar Decimal Degree ke DMS (D°M'S")
     def decimal_to_dms(deg):
         d = int(deg)
         m = int((deg - d) * 60)
@@ -54,14 +59,14 @@ if check_password():
         except Exception as e:
             st.error(f"Ralat EPSG: {e}")
 
-        # Tutup poligon
+        # Tutup poligon (untuk lukisan garisan kuning)
         df_poly = pd.concat([df, df.iloc[[0]]], ignore_index=True)
         center_lat, center_lon = df['lat'].mean(), df['lon'].mean()
 
         # 2. BINA PETA
         fig = go.Figure()
 
-        # A. LUKIS GARISAN LOT
+        # A. LUKIS GARISAN LOT (POLIGON)
         fig.add_trace(go.Scattermapbox(
             lat=df_poly['lat'], lon=df_poly['lon'],
             mode='lines+markers',
@@ -71,51 +76,49 @@ if check_password():
             name="Sempadan"
         ))
 
-        # B. PROSES LABEL SETIAP SEGMEN (Titik ke Titik)
-        # Kita buat satu loop untuk setiap garisan antara dua stesen
-        for i in range(len(df_poly)-1):
-            p1 = df_poly.iloc[i]
-            p2 = df_poly.iloc[i+1]
-            
-            # Kira Bearing & Jarak (Guna unit METER E,N)
-            dE = p2['E'] - p1['E']
-            dN = p2['N'] - p1['N']
-            dist = np.sqrt(dE**2 + dN**2)
-            brg = np.degrees(np.arctan2(dE, dN)) % 360
-            
-            # Titik Tengah untuk letak Label (Lat/Lon)
-            mid_lat = (p1['lat'] + p2['lat']) / 2
-            mid_lon = (p1['lon'] + p2['lon']) / 2
-            
-            # Tambah Label ke Peta
+        # B. LOGIK LABEL BEARING & JARAK (Jika checkbox ditanda)
+        if show_brg_dist:
+            for i in range(len(df_poly)-1):
+                p1, p2 = df_poly.iloc[i], df_poly.iloc[i+1]
+                
+                # Kira Bearing & Jarak (Guna unit METER E,N)
+                dE = p2['E'] - p1['E']
+                dN = p2['N'] - p1['N']
+                dist = np.sqrt(dE**2 + dN**2)
+                brg = np.degrees(np.arctan2(dE, dN)) % 360
+                
+                # Titik Tengah untuk Label (Lat/Lon)
+                mid_lat = (p1['lat'] + p2['lat']) / 2
+                mid_lon = (p1['lon'] + p2['lon']) / 2
+                
+                # Tambah Label (Bearing di atas, Jarak di bawah)
+                fig.add_trace(go.Scattermapbox(
+                    lat=[mid_lat], lon=[mid_lon],
+                    mode='text',
+                    text=[f"<b>{decimal_to_dms(brg)}</b><br>{dist:.3f}m"],
+                    textfont=dict(size=12, color="cyan", family="Arial Black"),
+                    hoverinfo='none'
+                ))
+
+        # C. LABEL NO STESEN (Jika checkbox ditanda)
+        if show_stn:
             fig.add_trace(go.Scattermapbox(
-                lat=[mid_lat], 
-                lon=[mid_lon],
-                mode='text',
-                text=[f"<b>{decimal_to_dms(brg)}</b><br>{dist:.3f}m"],
-                textfont=dict(size=12, color="cyan", family="Arial Black"),
-                hoverinfo='none'
+                lat=df['lat'], lon=df['lon'],
+                mode='text', text=df['STN'].astype(str),
+                textposition="top right",
+                textfont=dict(size=14, color="white", family="Arial Black")
             ))
 
-        # C. LABEL NO STESEN
-        fig.add_trace(go.Scattermapbox(
-            lat=df['lat'], lon=df['lon'],
-            mode='text', 
-            text=df['STN'].astype(str),
-            textposition="top right",
-            textfont=dict(size=14, color="white", family="Arial Black")
-        ))
+        # D. LABEL LUAS (Jika checkbox ditanda)
+        if show_area:
+            area = 0.5 * np.abs(np.dot(df['E'], np.roll(df['N'], 1)) - np.dot(df['N'], np.roll(df['E'], 1)))
+            fig.add_trace(go.Scattermapbox(
+                lat=[center_lat], lon=[center_lon],
+                mode='text', text=[f"<b>LUAS:<br>{area:.2f} m²</b>"],
+                textfont=dict(size=18, color="yellow", family="Arial Black")
+            ))
 
-        # D. LABEL LUAS (Di Tengah Poligon)
-        area = 0.5 * np.abs(np.dot(df['E'], np.roll(df['N'], 1)) - np.dot(df['N'], np.roll(df['E'], 1)))
-        fig.add_trace(go.Scattermapbox(
-            lat=[center_lat], lon=[center_lon],
-            mode='text', 
-            text=[f"<b>LUAS:<br>{area:.2f} m²</b>"],
-            textfont=dict(size=18, color="yellow", family="Arial Black")
-        ))
-
-        # 3. LAYOUT MAPBOX
+        # 3. LAYOUT MAPBOX & SATELIT
         fig.update_layout(
             mapbox=dict(
                 style="white-bg",
@@ -135,4 +138,4 @@ if check_password():
         st.plotly_chart(fig, use_container_width=True)
         
     else:
-        st.error("Fail 'point.csv' tidak dijumpai.")
+        st.error("Fail 'point.csv' tidak dijumpai. Pastikan fail dimuat naik ke GitHub.")
