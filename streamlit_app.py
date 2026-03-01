@@ -3,57 +3,72 @@ import pandas as pd
 import plotly.graph_objects as go
 import os
 
-st.set_page_config(page_title="PUO - Visualisasi Lot", layout="wide")
+# 1. Konfigurasi Halaman
+st.set_page_config(page_title="PUO - Visualisasi Lot Satelit", layout="wide")
 
-st.title("🛰️ Paparan Lot Poligon")
+st.markdown("<h2 style='text-align: center;'>🛰️ Paparan Lot Poligon (Satelit di Belakang)</h2>", unsafe_allow_html=True)
+st.markdown("---")
 
-# 1. BACA FAIL
-if os.path.exists("data ukur.csv"):
-    df = pd.read_csv("data ukur.csv")
+default_file = "data ukur.csv"
+
+if os.path.exists(default_file):
+    df = pd.read_csv(default_file)
     
-    # 2. PASTIKAN DATA DIAMBIL DENGAN BETUL
-    # CSV anda: STN, x, y
-    # Kita buat dataframe baru khusus untuk plotting
-    plot_df = pd.DataFrame()
-    plot_df['stn'] = df['STN']
-    plot_df['lon'] = df['x'] # Longitude
-    plot_df['lat'] = df['y'] # Latitude
-    
-    # 3. TUTUP POLIGON (PENTING: supaya garisan bersambung balik ke titik asal)
-    df_closed = pd.concat([plot_df, plot_df.iloc[[0]]], ignore_index=True)
+    # Pastikan kolum x dan y wujud (x=lon, y=lat)
+    if 'x' in df.columns and 'y' in df.columns:
+        df_plot = df.rename(columns={'x': 'lon', 'y': 'lat'})
+        
+        # Tutup poligon (sambung balik ke stesen 1)
+        df_poly = pd.concat([df_plot, df_plot.iloc[[0]]], ignore_index=True)
 
-    # 4. BINA PETA
-    fig = go.Figure()
+        # 2. BINA PETA
+        fig = go.Figure()
 
-    # Tambah garisan poligon
-    fig.add_trace(go.Scattermapbox(
-        lat=df_closed['lat'],
-        lon=df_closed['lon'],
-        mode='lines+markers+text',
-        fill="toself",
-        fillcolor="rgba(255, 255, 0, 0.3)", # Kuning lutsinar
-        line=dict(width=4, color='yellow'),
-        marker=dict(size=12, color='red'),
-        text=df_closed['stn'],
-        textposition="top right"
-    ))
+        # Tambah Poligon (Ini dipanggil 'trace')
+        fig.add_trace(go.Scattermapbox(
+            lat=df_poly['lat'],
+            lon=df_poly['lon'],
+            mode='lines+markers+text',
+            fill="toself",
+            fillcolor="rgba(255, 255, 0, 0.4)", # Kuning lutsinar
+            marker=dict(size=12, color='red'),
+            line=dict(width=3, color='yellow'),
+            text=df_poly['STN'],
+            textposition="top right",
+            name="Lot Sempadan"
+        ))
 
-    # 5. CONFIGURATION PETA
-    fig.update_layout(
-        mapbox_style="open-street-map", # Guna ini dulu untuk pastikan poligon muncul
-        mapbox=dict(
-            center=dict(lat=plot_df['lat'].mean(), lon=plot_df['lon'].mean()),
-            zoom=18
-        ),
-        margin={"r":0,"t":0,"l":0,"b":0},
-        height=700
-    )
+        # 3. KONFIGURASI LAYOUT & LAYER SATELIT
+        fig.update_layout(
+            mapbox=dict(
+                style="white-bg", # Latar belakang kosong supaya tidak ganggu satelit
+                layers=[
+                    {
+                        "below": 'traces', # PENTING: Meletakkan satelit di BELAKANG poligon
+                        "sourcetype": "raster",
+                        "sourceattribution": "Google Satellite",
+                        "source": [
+                            # Menggunakan pelayan Google Satellite yang sangat stabil
+                            "https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}"
+                        ]
+                    }
+                ],
+                center=dict(lat=df_plot['lat'].mean(), lon=df_plot['lon'].mean()),
+                zoom=19 # Zoom dekat untuk nampak lot
+            ),
+            margin={"r":0,"t":0,"l":0,"b":0},
+            height=700,
+            showlegend=False
+        )
 
-    st.plotly_chart(fig, use_container_width=True)
-    
-    # Paparkan data di bawah peta untuk semakan manual
-    st.subheader("Semakan Data CSV")
-    st.write(df)
-
+        # Paparkan Peta
+        st.plotly_chart(fig, use_container_width=True)
+        
+        # Paparkan Data untuk semakan
+        with st.expander("Klik untuk lihat data koordinat"):
+            st.dataframe(df_plot[['STN', 'lat', 'lon']])
+            
+    else:
+        st.error("Ralat: Fail CSV mesti mempunyai kolum 'x' dan 'y'.")
 else:
-    st.error("Fail 'data ukur.csv' tidak dijumpai.")
+    st.error("Fail 'data ukur.csv' tidak dijumpai. Sila muat naik ke GitHub.")
