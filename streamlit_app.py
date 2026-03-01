@@ -5,151 +5,81 @@ import numpy as np
 import os
 
 # 1. Konfigurasi Halaman
-st.set_page_config(page_title="Visualisasi LOT 11487 - PUO", layout="centered")
+st.set_page_config(page_title="PUO Geomatik - Satellite Overlay", layout="wide")
 
-# --- HEADER: TAJUK & LOGO ---
-col1, col2, col3 = st.columns([1, 3, 1])
+# --- FUNGSI PENUKARAN KOORDINAT (CASSINI/LOCAL TO WGS84) ---
+def transform_to_latlon(df):
+    """
+    Menukarkan koordinat meter (E, N) kepada Latitud/Longitud.
+    Titik Rujukan: STN 5 (999.99, 1000.00) diletakkan di PUO.
+    """
+    # Koordinat Lat/Lon SEBENAR untuk PUO (Stesen 5)
+    ref_lat = 4.588825  
+    ref_lon = 101.043690
+    
+    # Rujukan asalan dalam CSV (E=1000, N=1000)
+    origin_e = 1000.0
+    origin_n = 1000.0
+    
+    # Faktor penukaran kasar (meter ke darjah)
+    lat_per_meter = 1 / 111320
+    lon_per_meter = 1 / (111320 * np.cos(np.radians(ref_lat)))
+    
+    df['lat'] = ref_lat + (df['N'] - origin_n) * lat_per_meter
+    df['lon'] = ref_lon + (df['E'] - origin_e) * lon_per_meter
+    return df
 
-logo_path = "politeknik-ungku-umar-seeklogo-removebg-preview.png" 
-
-with col1:
-    if os.path.exists(logo_path):
-        st.image(logo_path, width=200)
-    else:
-        st.write("PUO")
-
-with col2:
-    st.markdown(
-        """
-        <div style='text-align: center;'>
-            <h4 style='margin-bottom: 0;'>POLITEKNIK UNGKU OMAR</h1>
-            <p style='font-size: 1.2em;'>Jabatan Kejuruteraan Geomatik-Sistem Lot Poligon</p>
-        </div>
-        """, 
-        unsafe_allow_html=True
-    )
-
-st.markdown("---")
-
-def decimal_to_dms(deg):
-    d = int(deg)
-    m = int((deg - d) * 60)
-    s = int(round((deg - d - m/60) * 3600))
-    if s >= 60: s = 0; m += 1
-    if m >= 60: m = 0; d += 1
-    return f"{d}°{m:02d}'{s:02d}\""
-
-# --- BAHAGIAN AUTO-UPLOAD ---
-# Nama fail yang anda mahu sistem baca secara automatik
+# --- CARI FAIL CSV ---
 default_file = "point.csv"
 
-# Kita masih kekalkan uploader sebagai pilihan (optional)
-uploaded_file = st.file_uploader("Muat naik fail CSV baru (Jika mahu tukar)", type=["csv"])
-
-# Logik untuk memilih sumber data
-df = None
-
-if uploaded_file is not None:
-    # Jika pengguna muat naik fail secara manual, gunakan fail tersebut
-    df = pd.read_csv(uploaded_file)
-    st.info("Memaparkan data daripada fail yang dimuat naik.")
-elif os.path.exists(default_file):
-    # Jika tiada fail dimuat naik, cari fail 'data ukur.csv' dalam folder
+if os.path.exists(default_file):
     df = pd.read_csv(default_file)
-    st.success(f"Fail '{default_file}' dikesan dan dimuatkan secara automatik.")
+    df = transform_to_latlon(df)
+    df_poly = pd.concat([df, df.iloc[[0]]], ignore_index=True)
+
+    st.title("🛰️ Paparan Satelit Lot Poligon")
+
+    # 2. BINA PETA (Guna Mapbox Layer)
+    fig = go.Figure()
+
+    # Tambah Poligon
+    fig.add_trace(go.Scattermapbox(
+        lat=df_poly['lat'],
+        lon=df_poly['lon'],
+        mode='lines+markers+text',
+        fill="toself",
+        fillcolor="rgba(0, 255, 255, 0.3)", # Biru cyan lutsinar
+        marker=dict(size=12, color='yellow'),
+        line=dict(width=3, color='yellow'),
+        text=df_poly['STN'],
+        textposition="top center",
+        hoverinfo='text'
+    ))
+
+    # 3. CONFIGURATION MAPBOX & SATELIT
+    fig.update_layout(
+        mapbox=dict(
+            style="white-bg", # Mesti guna white-bg jika guna layer raster
+            layers=[
+                {
+                    "below": 'traces',
+                    "sourcetype": "raster",
+                    "sourceattribution": "Esri World Imagery",
+                    "source": [
+                        "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+                    ]
+                }
+            ],
+            center=dict(lat=df['lat'].mean(), lon=df['lon'].mean()),
+            zoom=18 # Dekatkan zoom supaya nampak bangunan
+        ),
+        margin={"r":0,"t":0,"l":0,"b":0},
+        height=700,
+        showlegend=False
+    )
+
+    st.plotly_chart(fig, use_container_width=True)
+    st.success("Satelit berjaya dimuatkan dengan koordinat transformasi.")
+    
 else:
-    st.warning("Sila pastikan fail 'data ukur.csv' berada dalam folder yang sama atau muat naik fail secara manual.")
-
-# --- PROSES DATA & VISUALISASI ---
-if df is not None:
-    try:
-        if 'E' in df.columns and 'N' in df.columns:
-            df_poly = pd.concat([df, df.iloc[[0]]], ignore_index=True)
-            centroid_x, centroid_y = df['E'].mean(), df['N'].mean()
-            
-            max_n = df['N'].max()
-            mid_e = df['E'].mean()
-
-            fig = go.Figure()
-
-            # 1. Plot Poligon
-            fig.add_trace(go.Scatter(
-                x=df_poly['E'], y=df_poly['N'],
-                mode='lines+markers', fill="toself",
-                line=dict(color='RoyalBlue', width=2),
-                marker=dict(size=8, color='red'),
-                name="Sempadan"
-            ))
-
-            # 2. Label Tajuk
-            fig.add_annotation(
-                x=mid_e, y=max_n + 1.2, 
-                text="<b>LOT 11487</b>",
-                showarrow=False,
-                font=dict(size=22, color="black"),
-                xref="x", yref="y"
-            )
-
-            # 3. Label Bearing & Jarak
-            for i in range(len(df_poly)-1):
-                x1, y1 = df_poly['E'].iloc[i], df_poly['N'].iloc[i]
-                x2, y2 = df_poly['E'].iloc[i+1], df_poly['N'].iloc[i+1]
-                
-                dx, dy = x2 - x1, y2 - y1
-                dist = np.sqrt(dx**2 + dy**2)
-                brg_deg = np.degrees(np.arctan2(dx, dy)) % 360
-                angle_rad = np.arctan2(dy, dx)
-                angle_deg = np.degrees(angle_rad)
-                
-                display_angle = angle_deg
-                if display_angle > 90: display_angle -= 180
-                elif display_angle < -90: display_angle += 180
-
-                mid_x, mid_y = (x1 + x2) / 2, (y1 + y2) / 2
-                off = 0.35
-
-                fig.add_annotation(
-                    x=mid_x - off * np.sin(angle_rad), y=mid_y + off * np.cos(angle_rad),
-                    text=f"<b>{decimal_to_dms(brg_deg)}</b>", showarrow=False,
-                    textangle=-display_angle, font=dict(size=9, color="black")
-                )
-                fig.add_annotation(
-                    x=mid_x + off * np.sin(angle_rad), y=mid_y - off * np.cos(angle_rad),
-                    text=f"<b>{dist:.3f} m</b>", showarrow=False,
-                    textangle=-display_angle, font=dict(size=9, color="black")
-                )
-
-                # Nombor Stesen
-                dx_out, dy_out = x1 - centroid_x, y1 - centroid_y
-                mag = np.sqrt(dx_out**2 + dy_out**2)
-                label_off = 0.7
-                fig.add_annotation(
-                    x=x1 + (dx_out/mag)*label_off, y=y1 + (dy_out/mag)*label_off,
-                    text=f"{df['STN'].iloc[i]}", showarrow=False,
-                    font=dict(size=11, color="red", family="Arial Black"),
-                    bgcolor="white", borderpad=2
-                )
-
-            # 4. Luas
-            area = 0.5 * np.abs(np.dot(df_poly['E'], np.roll(df_poly['N'], 1)) - np.dot(df_poly['N'], np.roll(df_poly['E'], 1)))
-            fig.add_annotation(
-                x=centroid_x, y=centroid_y, 
-                text=f"<b>LUAS<br>{area:.2f} m²</b>",
-                showarrow=False, font=dict(size=14, color="red"),
-                bgcolor="rgba(255, 255, 255, 0.7)"
-            )
-
-            fig.update_layout(
-                xaxis=dict(title="Easting (E)", gridcolor='lightgrey'),
-                yaxis=dict(title="Northing (N)", gridcolor='lightgrey', scaleanchor="x", scaleratio=1),
-                width=800, height=850, plot_bgcolor='white'
-            )
-
-            st.plotly_chart(fig, use_container_width=True)
-            st.success(f"Selesai! LOT 11487 telah dijana.")
-            
-        else:
-            st.error("Fail CSV tidak mempunyai kolum 'E' atau 'N'.")
-            
-    except Exception as e:
-        st.error(f"Ralat: {e}")
+    st.error(f"Fail '{default_file}' tidak dijumpai. Sila pastikan fail CSV ada dalam folder yang sama.")
