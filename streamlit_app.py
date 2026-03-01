@@ -9,9 +9,8 @@ from pyproj import Transformer
 # 1. Konfigurasi Halaman
 st.set_page_config(page_title="Sistem Lot Geomatik PUO", layout="wide")
 
-# --- BAHAGIAN HEADER (LOGO LOKAL & TAJUK) ---
+# --- HEADER ---
 logo_path = "politeknik-ungku-umar-seeklogo-removebg-preview.png"
-
 col1, col2 = st.columns([1, 5])
 with col1:
     if os.path.exists(logo_path):
@@ -24,7 +23,6 @@ with col2:
 
 st.markdown("---")
 
-# --- FUNGSI KATA LALUAN ---
 def check_password():
     if "password_correct" not in st.session_state:
         st.session_state["password_correct"] = False
@@ -43,17 +41,21 @@ def check_password():
     return True
 
 if check_password():
-    # --- SIDEBAR (UPLOAD & TETAPAN) ---
+    # --- SIDEBAR ---
     st.sidebar.header("📁 Fail Data")
-    # PENTING: Bahagian muat naik fail CSV
     uploaded_file = st.sidebar.file_uploader("Muat Naik Fail CSV Anda (STN, E, N)", type=["csv"])
     
     st.sidebar.header("⚙️ Tetapan Peta")
     show_satellite = st.sidebar.checkbox("🌏 Buka Layer Satelit (On/Off)", value=True)
-    epsg_input = st.sidebar.text_input("Kod EPSG (Cth: 4390, 3386, 3168):", value="4390")
-    zoom_val = st.sidebar.slider("🔍 Zum Keluar Peta (Margin dalam Meter):", 15, 22, 20)
+    epsg_input = st.sidebar.text_input("Kod EPSG (Cth: 4390, 3386):", value="4390")
+    zoom_val = st.sidebar.slider("🔍 Zoom:", 15, 22, 20)
     
-    st.sidebar.subheader("🏷️ Tetapan Label")
+    # TAMBAHAN: Checkbox Grid
+    st.sidebar.subheader("🌐 Tetapan Grid")
+    show_grid = st.sidebar.checkbox("Papar Grid X & Y", value=True)
+    grid_spacing = st.sidebar.number_input("Sela Grid (Meter):", min_value=5, max_value=500, value=20)
+    
+    st.sidebar.subheader("🏷️ Tetapan Label Lot")
     show_stn = st.sidebar.checkbox("Papar Label Stesen (STN)", value=True)
     show_brg_dist = st.sidebar.checkbox("Papar Bearing & Jarak", value=True)
     show_area = st.sidebar.checkbox("Papar Label Luas Lot", value=True)
@@ -65,60 +67,70 @@ if check_password():
         if s >= 60: s = 0; m += 1
         return f"{d}°{m:02d}'{s:02d}\""
 
-    # --- PEMPROSESAN DATA ---
     if uploaded_file is not None:
         try:
             df = pd.read_csv(uploaded_file)
-            df.columns = df.columns.str.strip().str.upper() # Pastikan kolum sentiasa Huruf Besar
+            df.columns = df.columns.str.strip().str.upper()
 
-            # Semak jika kolum yang diperlukan wujud
-            required_cols = {'STN', 'E', 'N'}
-            if not required_cols.issubset(df.columns):
-                st.error(f"Fail CSV mestilah mempunyai kolum: STN, E, N. Kolum dikesan: {df.columns.tolist()}")
+            if not {'STN', 'E', 'N'}.issubset(df.columns):
+                st.error("Fail CSV tidak lengkap!")
             else:
-                # TRANSFORMASI KOORDINAT
-                try:
-                    transformer = Transformer.from_crs(f"EPSG:{epsg_input}", "EPSG:4326", always_xy=True)
-                    lon, lat = transformer.transform(df['E'].values, df['N'].values)
-                    df['lon'], df['lat'] = lon, lat
-                except Exception as e:
-                    st.error(f"Ralat EPSG: {e}")
+                transformer = Transformer.from_crs(f"EPSG:{epsg_input}", "EPSG:4326", always_xy=True)
+                lon, lat = transformer.transform(df['E'].values, df['N'].values)
+                df['lon'], df['lat'] = lon, lat
 
                 df_poly = pd.concat([df, df.iloc[[0]]], ignore_index=True)
                 center_lat, center_lon = df['lat'].mean(), df['lon'].mean()
 
-                # --- EKSPORT QGIS ---
-                st.sidebar.subheader("📤 Eksport Data")
-                coordinates = [[row['lon'], row['lat']] for idx, row in df_poly.iterrows()]
-                geojson_data = {
-                    "type": "FeatureCollection",
-                    "features": [{
-                        "type": "Feature",
-                        "properties": {"Name": "Lot Uploaded", "EPSG": epsg_input},
-                        "geometry": {"type": "Polygon", "coordinates": [coordinates]}
-                    }]
-                }
-                st.sidebar.download_button(
-                    label="Download GeoJSON (untuk QGIS)",
-                    data=json.dumps(geojson_data),
-                    file_name="lot_geomatik.geojson",
-                    mime="application/json"
-                )
-
-                # 2. BINA PETA
                 fig = go.Figure()
 
-                # LUKIS GARISAN LOT
+                # --- 1. LOGIK PEMBINAAN GRID X & Y ---
+                if show_grid:
+                    # Tentukan julat grid berdasarkan koordinat E & N
+                    min_e, max_e = df['E'].min() - 50, df['E'].max() + 50
+                    min_n, max_n = df['N'].min() - 50, df['N'].max() + 50
+                    
+                    # Garisan Vertical (X / Easting)
+                    for x in np.arange(np.floor(min_e/grid_spacing)*grid_spacing, max_e, grid_spacing):
+                        lons, lats = transformer.transform([x, x], [min_n, max_n])
+                        fig.add_trace(go.Scattermapbox(
+                            lat=lats, lon=lons, mode='lines',
+                            line=dict(width=1, color='rgba(255, 255, 255, 0.3)'),
+                            hoverinfo='none', showlegend=False
+                        ))
+                        # Label Nilai X
+                        fig.add_trace(go.Scattermapbox(
+                            lat=[lats[0]], lon=[lons[0]], mode='text',
+                            text=[f"E:{x:.0f}"], textfont=dict(size=9, color="white"),
+                            showlegend=False
+                        ))
+
+                    # Garisan Horizontal (Y / Northing)
+                    for y in np.arange(np.floor(min_n/grid_spacing)*grid_spacing, max_n, grid_spacing):
+                        lons, lats = transformer.transform([min_e, max_e], [y, y])
+                        fig.add_trace(go.Scattermapbox(
+                            lat=lats, lon=lons, mode='lines',
+                            line=dict(width=1, color='rgba(255, 255, 255, 0.3)'),
+                            hoverinfo='none', showlegend=False
+                        ))
+                        # Label Nilai Y
+                        fig.add_trace(go.Scattermapbox(
+                            lat=[lats[0]], lon=[lons[0]], mode='text',
+                            text=[f"N:{y:.0f}"], textfont=dict(size=9, color="white"),
+                            textposition="middle right", showlegend=False
+                        ))
+
+                # --- 2. LUKIS LOT ---
                 fig.add_trace(go.Scattermapbox(
                     lat=df_poly['lat'], lon=df_poly['lon'],
                     mode='lines+markers',
                     fill="toself", fillcolor="rgba(255, 255, 0, 0.15)",
                     line=dict(width=3, color='yellow'),
                     marker=dict(size=8, color='red'),
-                    name="Sempadan"
+                    name="Lot"
                 ))
 
-                # LABEL BEARING & JARAK (DITAMPILKAN PADA PETA)
+                # --- 3. LABEL LOT ---
                 if show_brg_dist:
                     for i in range(len(df_poly)-1):
                         p1, p2 = df_poly.iloc[i], df_poly.iloc[i+1]
@@ -126,36 +138,31 @@ if check_password():
                         dist = np.sqrt(dE**2 + dN**2)
                         brg = np.degrees(np.arctan2(dE, dN)) % 360
                         m_lat, m_lon = (p1['lat'] + p2['lat'])/2, (p1['lon'] + p2['lon'])/2
-                        
                         fig.add_trace(go.Scattermapbox(
-                            lat=[m_lat], lon=[m_lon],
-                            mode='text',
+                            lat=[m_lat], lon=[m_lon], mode='text',
                             text=[f"<b>{decimal_to_dms(brg)}</b><br>{dist:.3f}m"],
                             textfont=dict(size=12, color="cyan", family="Arial Black"),
                             showlegend=False
                         ))
 
-                # LABEL NO STESEN
                 if show_stn:
                     fig.add_trace(go.Scattermapbox(
-                        lat=df['lat'], lon=df['lon'],
-                        mode='text', text=df['STN'].astype(str),
-                        textposition="top right",
+                        lat=df['lat'], lon=df['lon'], mode='text', 
+                        text=df['STN'].astype(str), textposition="top right",
                         textfont=dict(size=14, color="white", family="Arial Black"),
                         showlegend=False
                     ))
 
-                # LABEL LUAS
                 if show_area:
                     area = 0.5 * np.abs(np.dot(df['E'], np.roll(df['N'], 1)) - np.dot(df['N'], np.roll(df['E'], 1)))
                     fig.add_trace(go.Scattermapbox(
-                        lat=[center_lat], lon=[center_lon],
-                        mode='text', text=[f"<b>LUAS:<br>{area:.2f} m²</b>"],
+                        lat=[center_lat], lon=[center_lon], mode='text', 
+                        text=[f"<b>LUAS:<br>{area:.2f} m²</b>"],
                         textfont=dict(size=18, color="yellow", family="Arial Black"),
                         showlegend=False
                     ))
 
-                # 3. LAYOUT & LOGIK SATELIT
+                # LAYOUT
                 mapbox_style = "white-bg"
                 layers = []
                 if show_satellite:
@@ -170,15 +177,15 @@ if check_password():
 
                 st.plotly_chart(fig, use_container_width=True)
                 
-                # Papar data CSV di bawah peta sebagai rujukan
-                st.write("### 📊 Jadual Data")
-                st.dataframe(df[['STN', 'E', 'N']], use_container_width=True)
-                
+                # --- EKSPORT ---
+                st.sidebar.subheader("📤 Eksport Data")
+                st.sidebar.download_button(
+                    label="Download GeoJSON",
+                    data=json.dumps({"type": "FeatureCollection", "features": [{"type": "Feature", "geometry": {"type": "Polygon", "coordinates": [[[r['lon'], r['lat']] for i, r in df_poly.iterrows()]]}}]}),
+                    file_name="lot.geojson", mime="application/json"
+                )
+
         except Exception as e:
-            st.error(f"Gagal memproses fail: {e}")
+            st.error(f"Ralat: {e}")
     else:
-        st.info("Sila muat naik fail CSV di sidebar untuk memulakan visualisasi.")
-
-
-
-
+        st.info("Sila muat naik fail CSV.")
