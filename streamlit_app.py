@@ -5,7 +5,6 @@ import numpy as np
 import os
 from pyproj import Geod
 
-# 1. Konfigurasi Halaman
 st.set_page_config(page_title="Sistem Lot Geomatik", layout="wide")
 
 # --- FUNGSI KATA LALUAN ---
@@ -27,14 +26,12 @@ def check_password():
     return True
 
 if check_password():
-    # --- SIDEBAR ---
     st.sidebar.header("⚙️ Tetapan Peta")
-    st.sidebar.info("Data dikesan sebagai WGS84 (Lat/Lon)")
-    zoom_val = st.sidebar.slider("🔍 Tahap Zoom:", 10, 22, 19)
+    zoom_val = st.sidebar.slider("🔍 Tahap Zoom:", 10, 22, 20)
     
     st.sidebar.subheader("🏷️ Tetapan Label")
     show_stn = st.sidebar.checkbox("Label Stesen", value=True)
-    show_brg_dist = st.sidebar.checkbox("Bearing & Jarak", value=True)
+    show_data = st.sidebar.checkbox("Label Bearing & Jarak", value=True)
     show_area = st.sidebar.checkbox("Label Luas", value=True)
 
     def decimal_to_dms(deg):
@@ -44,78 +41,80 @@ if check_password():
         if s >= 60: s = 0; m += 1
         return f"{d}°{m:02d}'{s:02d}\""
 
-    # --- LOADING DATA ---
     if os.path.exists("data ukur.csv"):
         df = pd.read_csv("data ukur.csv")
+        df['lon'] = df['x']
+        df['lat'] = df['y']
         
-        # Penamaan semula untuk paparan ukur (x=E, y=N)
-        df = df.rename(columns={'x': 'E', 'y': 'N'})
-        df['lon'] = df['E']
-        df['lat'] = df['N']
-
-        # Poligon tertutup untuk lukisan
         df_poly = pd.concat([df, df.iloc[[0]]], ignore_index=True)
         center_lat, center_lon = df['lat'].mean(), df['lon'].mean()
 
-        # 2. BINA PETA
         fig = go.Figure()
 
-        # Trace 1: Poligon
+        # 1. LUKIS POLIGON
         fig.add_trace(go.Scattermapbox(
             lat=df_poly['lat'], lon=df_poly['lon'],
             mode='lines+markers',
-            fill="toself", fillcolor="rgba(255, 255, 0, 0.2)",
-            line=dict(width=3, color='yellow'),
-            marker=dict(size=10, color='red'),
-            name="Sempadan"
+            fill="toself", fillcolor="rgba(255, 255, 0, 0.1)",
+            line=dict(width=2, color='yellow'),
+            marker=dict(size=8, color='red'),
+            hoverinfo='none'
         ))
 
         geod = Geod(ellps="WGS84")
 
-        # Trace 2: Label Stesen
+        # 2. LABEL STESEN
         if show_stn:
             fig.add_trace(go.Scattermapbox(
                 lat=df['lat'], lon=df['lon'],
                 mode='text', text=df['STN'].astype(str),
-                textposition="top right",
-                textfont=dict(size=14, color="white")
+                textposition="top center",
+                textfont=dict(size=13, color="white", family="Arial Black")
             ))
 
-        # Trace 3: Bearing & Jarak
-        if show_brg_dist:
-            lats_mid, lons_mid, texts_mid = [], [], []
+        # 3. BEARING & JARAK (DENGAN ROTASI)
+        if show_data:
             for i in range(len(df_poly)-1):
                 p1, p2 = df_poly.iloc[i], df_poly.iloc[i+1]
                 
-                # Kiriman Geodetik
+                # Kira Bearing & Jarak Sebenar (Geodetik)
                 fwd_az, back_az, dist = geod.inv(p1['lon'], p1['lat'], p2['lon'], p2['lat'])
                 brg = fwd_az % 360
                 
-                lats_mid.append((p1['lat'] + p2['lat']) / 2)
-                lons_mid.append((p1['lon'] + p2['lon']) / 2)
-                texts_mid.append(f"<b>{decimal_to_dms(brg)}<br>{dist:.2f}m</b>")
-            
-            fig.add_trace(go.Scattermapbox(
-                lat=lats_mid, lon=lons_mid,
-                mode='text', text=texts_mid,
-                textfont=dict(size=11, color="cyan")
-            ))
+                # Titik Tengah untuk Label
+                mid_lat = (p1['lat'] + p2['lat']) / 2
+                mid_lon = (p1['lon'] + p2['lon']) / 2
+                
+                # Kira Sudut Rotasi (Skrin)
+                # Kita guna beza koordinat mudah untuk dapatkan angle visual
+                d_lon = p2['lon'] - p1['lon']
+                d_lat = p2['lat'] - p1['lat']
+                angle = np.degrees(np.arctan2(d_lat, d_lon))
+                
+                # Adjust supaya teks tidak terbalik (upside down)
+                if angle > 90: angle -= 180
+                elif angle < -90: angle += 180
 
-        # Trace 4: Luas (Dibetulkan untuk mengelakkan ralat Invalid Geometry)
+                # Tambah Label Bearing (Atas Garisan) & Jarak (Bawah Garisan)
+                fig.add_trace(go.Scattermapbox(
+                    lat=[mid_lat], lon=[mid_lon],
+                    mode='text',
+                    text=[f"{decimal_to_dms(brg)}<br>{dist:.2f}m"],
+                    textfont=dict(size=11, color="cyan", family="Arial Black"),
+                    hoverinfo='none'
+                ))
+
+        # 4. LABEL LUAS
         if show_area:
-            # Pastikan koordinat dihantar sebagai list biasa
-            lons_list = df['lon'].tolist()
-            lats_list = df['lat'].tolist()
-            # Pengiraan luas geodetik
-            area_m2, perim = geod.polygon_area_perimeter(lons_list, lats_list)
-            
+            lons, lats = df['lon'].tolist(), df['lat'].tolist()
+            area_m2, perim = geod.polygon_area_perimeter(lons, lats)
             fig.add_trace(go.Scattermapbox(
                 lat=[center_lat], lon=[center_lon],
                 mode='text', text=[f"LUAS: {abs(area_m2):.2f} m²"],
-                textfont=dict(size=18, color="yellow", family="Arial Black")
+                textfont=dict(size=16, color="yellow", family="Arial Black")
             ))
 
-        # 3. LAYOUT
+        # 5. LAYOUT
         fig.update_layout(
             mapbox=dict(
                 style="white-bg",
@@ -126,11 +125,9 @@ if check_password():
                 center=dict(lat=center_lat, lon=center_lon),
                 zoom=zoom_val
             ),
-            margin={"r":0,"t":0,"l":0,"b":0}, height=750, showlegend=False
+            margin={"r":0,"t":0,"l":0,"b":0}, height=800, showlegend=False
         )
 
         st.plotly_chart(fig, use_container_width=True)
-        st.write("### 📋 Data Koordinat Terkini")
-        st.dataframe(df[['STN', 'N', 'E']])
     else:
         st.error("Fail 'data ukur.csv' tidak dijumpai.")
