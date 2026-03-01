@@ -9,6 +9,19 @@ from pyproj import Transformer
 # 1. Konfigurasi Halaman
 st.set_page_config(page_title="Sistem Lot Geomatik PUO", layout="wide")
 
+# --- BAHAGIAN HEADER (LOGO & TAJUK) ---
+# Gunakan URL logo PUO yang sah atau fail lokal jika ada
+logo_url = "https://www.puo.edu.my/wp-content/uploads/2021/09/logo-puo.png"
+
+col1, col2 = st.columns([1, 5])
+with col1:
+    st.image(logo_url, width=120)
+with col2:
+    st.title("SISTEM VISUALISASI LOT GEOMATIK (PUO)")
+    st.subheader("Jabatan Kejuruteraan Awam - Unit Geomatik")
+
+st.markdown("---")
+
 # --- FUNGSI KATA LALUAN ---
 def check_password():
     if "password_correct" not in st.session_state:
@@ -16,7 +29,7 @@ def check_password():
     if not st.session_state["password_correct"]:
         cols = st.columns([1, 2, 1])
         with cols[1]:
-            st.title("🔒 Log Masuk")
+            st.info("Sila log masuk untuk mengakses data pemetaan.")
             pwd = st.text_input("Masukkan Kata Laluan:", type="password")
             if st.button("Masuk"):
                 if pwd == "puo123":
@@ -63,45 +76,37 @@ if check_password():
         df_poly = pd.concat([df, df.iloc[[0]]], ignore_index=True)
         center_lat, center_lon = df['lat'].mean(), df['lon'].mean()
 
-        # --- FUNGSI EKSPORT QGIS (GeoJSON) ---
-        st.sidebar.subheader("📤 Eksport Data")
-        
-        # Bina struktur GeoJSON
+        # --- EKSPORT QGIS ---
+        st.sidebar.subheader("📤 Eksport")
         coordinates = [[row['lon'], row['lat']] for idx, row in df_poly.iterrows()]
         geojson_data = {
             "type": "FeatureCollection",
             "features": [{
                 "type": "Feature",
-                "properties": {"Name": "Lot Geomatik", "EPSG": epsg_input},
-                "geometry": {
-                    "type": "Polygon",
-                    "coordinates": [coordinates]
-                }
+                "properties": {"Name": "Lot PUO", "EPSG": epsg_input},
+                "geometry": {"type": "Polygon", "coordinates": [coordinates]}
             }]
         }
-        
-        geojson_str = json.dumps(geojson_data)
         st.sidebar.download_button(
-            label="Download GeoJSON (untuk QGIS)",
-            data=geojson_str,
-            file_name="lot_geomatik.geojson",
+            label="Download GeoJSON (QGIS)",
+            data=json.dumps(geojson_data),
+            file_name="lot_puo.geojson",
             mime="application/json"
         )
 
         # 2. BINA PETA
         fig = go.Figure()
 
-        # LUKIS GARISAN LOT
+        # GARISAN LOT
         fig.add_trace(go.Scattermapbox(
             lat=df_poly['lat'], lon=df_poly['lon'],
             mode='lines+markers',
             fill="toself", fillcolor="rgba(255, 255, 0, 0.15)",
             line=dict(width=3, color='yellow'),
             marker=dict(size=8, color='red'),
-            name="Sempadan"
         ))
 
-        # LABEL BEARING & JARAK
+        # LABEL BEARING & JARAK (WAJIB MUNCUL)
         if show_brg_dist:
             for i in range(len(df_poly)-1):
                 p1, p2 = df_poly.iloc[i], df_poly.iloc[i+1]
@@ -138,7 +143,7 @@ if check_password():
                 showlegend=False
             ))
 
-        # 3. LAYOUT & LOGIK SATELIT
+        # 3. LAYOUT
         mapbox_style = "white-bg"
         layers = []
         if show_satellite:
@@ -148,7 +153,7 @@ if check_password():
 
         fig.update_layout(
             mapbox=dict(style=mapbox_style, layers=layers, center=dict(lat=center_lat, lon=center_lon), zoom=zoom_val),
-            margin={"r":0,"t":0,"l":0,"b":0}, height=850, showlegend=False
+            margin={"r":0,"t":0,"l":0,"b":0}, height=800, showlegend=False
         )
 
         st.plotly_chart(fig, use_container_width=True)
