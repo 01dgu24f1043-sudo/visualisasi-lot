@@ -49,14 +49,14 @@ if check_password():
     uploaded_file = st.sidebar.file_uploader("Muat Naik Fail CSV Anda (STN, E, N)", type=["csv"])
     
     st.sidebar.header("⚙️ Tetapan Peta")
-    show_satellite = st.sidebar.checkbox("Paparkan Imej Satelit", value=True)
-    epsg_input = st.sidebar.text_input("Kod EPSG (Perak: 4390):", value="4390")
-    zoom_val = st.sidebar.slider("🔍 Zoom:", 15, 22, 20)
+    show_satellite = st.sidebar.checkbox("Buka Layer Satelit (On/Off)", value=True)
+    epsg_input = st.sidebar.text_input("Kod EPSG (Cth: 4390, 3386, 3168):", value="4390")
+    zoom_val = st.sidebar.slider("🔍 Zum Keluar Peta (Margin dalam Meter):", 15, 22, 20)
     
-    st.sidebar.subheader("🏷️ Kawalan Label")
-    show_stn = st.sidebar.checkbox("Paparkan No. Stesen", value=True)
-    show_brg_dist = st.sidebar.checkbox("Paparkan Bearing & Jarak", value=True)
-    show_area = st.sidebar.checkbox("Paparkan Luas Lot", value=True)
+    st.sidebar.subheader("🏷️ Tetapan Label")
+    show_stn = st.sidebar.checkbox("Papar Label Stesen (STN)", value=True)
+    show_brg_dist = st.sidebar.checkbox("Papar Bearing & Jarak", value=True)
+    show_area = st.sidebar.checkbox("Papar Label Luas Lot", value=True)
 
     def decimal_to_dms(deg):
         d = int(deg)
@@ -178,5 +178,6 @@ if check_password():
             st.error(f"Gagal memproses fail: {e}")
     else:
         st.info("Sila muat naik fail CSV di sidebar untuk memulakan visualisasi.")
+
 
 
