@@ -42,7 +42,7 @@ def check_password():
     return True
 
 if check_password():
-    # --- SIDEBAR ---
+    # --- SIDEBAR (TETAPAN LABEL) ---
     st.sidebar.header("📁 Fail Data")
     uploaded_file = st.sidebar.file_uploader("Muat Naik CSV (STN, E, N)", type=["csv"])
     
@@ -50,6 +50,12 @@ if check_password():
     show_satellite = st.sidebar.checkbox("🌏 Buka Layer Satelit", value=True)
     epsg_input = st.sidebar.text_input("Kod EPSG (Cth: 4390):", value="4390")
     zoom_val = st.sidebar.slider("🔍 Zoom:", 15, 22, 19)
+    
+    st.sidebar.subheader("🏷️ Kawalan Label (Sentiasa Muncul)")
+    # Butang On/Off di Sidebar
+    show_stn = st.sidebar.checkbox("Papar No. Stesen (STN)", value=True)
+    show_brg_dist = st.sidebar.checkbox("Papar Bearing & Jarak", value=True)
+    show_area = st.sidebar.checkbox("Papar Luas Lot", value=True)
 
     def decimal_to_dms(deg):
         d = int(deg)
@@ -66,7 +72,6 @@ if check_password():
             if not {'STN', 'E', 'N'}.issubset(df.columns):
                 st.error("Fail CSV perlu kolum STN, E, N!")
             else:
-                # Transformasi Koordinat
                 transformer = Transformer.from_crs(f"EPSG:{epsg_input}", "EPSG:4326", always_xy=True)
                 lon, lat = transformer.transform(df['E'].values, df['N'].values)
                 df['lon'], df['lat'] = lon, lat
@@ -78,57 +83,54 @@ if check_password():
                 # --- BINA PETA ---
                 fig = go.Figure()
 
-                # 1. LUKIS FILL (KAWASAN TENGAH)
-                fig.add_trace(go.Scattermapbox(
-                    lat=df_poly['lat'], lon=df_poly['lon'],
-                    mode='lines', fill="toself", fillcolor="rgba(255, 255, 0, 0.15)",
-                    line=dict(width=0), hoverinfo='skip', showlegend=False
-                ))
-
-                # 2. LUKIS SEMPADAN & TITIK STESEN
+                # 1. LUKIS SEMPADAN & TITIK (DASAR)
                 fig.add_trace(go.Scattermapbox(
                     lat=df_poly['lat'], lon=df_poly['lon'],
                     mode='lines+markers',
+                    fill="toself", fillcolor="rgba(255, 255, 0, 0.15)",
                     line=dict(width=3, color='yellow'),
                     marker=dict(size=10, color='red'),
-                    hoverinfo='skip', showlegend=False
+                    hoverinfo='skip'
                 ))
 
-                # 3. LABEL KEKAL: NO STESEN (STN)
-                fig.add_trace(go.Scattermapbox(
-                    lat=df['lat'], lon=df['lon'],
-                    mode='text',
-                    text=df['STN'].astype(str),
-                    textposition="top right",
-                    textfont=dict(size=14, color="white", family="Arial Black"),
-                    hoverinfo='none', showlegend=False
-                ))
-
-                # 4. LABEL KEKAL: BEARING & JARAK (PADA SETIAP GARISAN)
-                for i in range(len(df_poly)-1):
-                    p1, p2 = df_poly.iloc[i], df_poly.iloc[i+1]
-                    dist = np.sqrt((p2['E']-p1['E'])**2 + (p2['N']-p1['N'])**2)
-                    brg = np.degrees(np.arctan2(p2['E']-p1['E'], p2['N']-p1['N'])) % 360
-                    
+                # 2. LOGIK LABEL STESEN (MOD TEKS SAHAJA - SENTIASA MUNCUL)
+                if show_stn:
                     fig.add_trace(go.Scattermapbox(
-                        lat=[(p1['lat'] + p2['lat']) / 2],
-                        lon=[(p1['lon'] + p2['lon']) / 2],
+                        lat=df['lat'], lon=df['lon'],
                         mode='text',
-                        text=[f"<b>{decimal_to_dms(brg)}</b><br>{dist:.3f}m"],
-                        textfont=dict(size=11, color="cyan", family="Arial Black"),
-                        textposition="middle center",
-                        hoverinfo='none', showlegend=False
+                        text=df['STN'].astype(str),
+                        textposition="top right",
+                        textfont=dict(size=14, color="white", family="Arial Black"),
+                        hoverinfo='none'
                     ))
 
-                # 5. LABEL KEKAL: LUAS (DI TENGAH LOT)
-                fig.add_trace(go.Scattermapbox(
-                    lat=[center_lat], lon=[center_lon],
-                    mode='text',
-                    text=[f"<b>LUAS:<br>{area:.2f} m²</b>"],
-                    textfont=dict(size=18, color="yellow", family="Arial Black"),
-                    textposition="middle center",
-                    hoverinfo='none', showlegend=False
-                ))
+                # 3. LOGIK LABEL BEARING & JARAK (SENTIASA MUNCUL)
+                if show_brg_dist:
+                    for i in range(len(df_poly)-1):
+                        p1, p2 = df_poly.iloc[i], df_poly.iloc[i+1]
+                        dist = np.sqrt((p2['E']-p1['E'])**2 + (p2['N']-p1['N'])**2)
+                        brg = np.degrees(np.arctan2(p2['E']-p1['E'], p2['N']-p1['N'])) % 360
+                        
+                        fig.add_trace(go.Scattermapbox(
+                            lat=[(p1['lat'] + p2['lat']) / 2],
+                            lon=[(p1['lon'] + p2['lon']) / 2],
+                            mode='text',
+                            text=[f"<b>{decimal_to_dms(brg)}</b><br>{dist:.3f}m"],
+                            textfont=dict(size=11, color="cyan", family="Arial Black"),
+                            textposition="middle center",
+                            hoverinfo='none'
+                        ))
+
+                # 4. LOGIK LABEL LUAS (SENTIASA MUNCUL)
+                if show_area:
+                    fig.add_trace(go.Scattermapbox(
+                        lat=[center_lat], lon=[center_lon],
+                        mode='text',
+                        text=[f"<b>LUAS:<br>{area:.2f} m²</b>"],
+                        textfont=dict(size=18, color="yellow", family="Arial Black"),
+                        textposition="middle center",
+                        hoverinfo='none'
+                    ))
 
                 # --- KONFIGURASI LAYOUT ---
                 layers = []
@@ -155,5 +157,3 @@ if check_password():
 
         except Exception as e:
             st.error(f"Ralat: {e}")
-    else:
-        st.info("Sila muat naik fail CSV.")
