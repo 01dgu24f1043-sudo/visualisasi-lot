@@ -47,14 +47,9 @@ if check_password():
     uploaded_file = st.sidebar.file_uploader("Muat Naik CSV (STN, E, N)", type=["csv"])
     
     st.sidebar.header("⚙️ Tetapan Peta")
-    show_satellite = st.sidebar.checkbox("🌏 Layer Satelit", value=True)
+    show_satellite = st.sidebar.checkbox("🌏 Buka Layer Satelit", value=True)
     epsg_input = st.sidebar.text_input("Kod EPSG (Cth: 4390):", value="4390")
     zoom_val = st.sidebar.slider("🔍 Zoom:", 15, 22, 19)
-    
-    st.sidebar.subheader("🏷️ Kawalan Label")
-    show_stn = st.sidebar.checkbox("Papar No. Stesen", value=True)
-    show_brg_dist = st.sidebar.checkbox("Papar Bearing & Jarak", value=True)
-    show_area = st.sidebar.checkbox("Papar Luas Lot", value=True)
 
     def decimal_to_dms(deg):
         d = int(deg)
@@ -78,59 +73,62 @@ if check_password():
                 
                 df_poly = pd.concat([df, df.iloc[[0]]], ignore_index=True)
                 center_lat, center_lon = df['lat'].mean(), df['lon'].mean()
+                area = 0.5 * np.abs(np.dot(df['E'], np.roll(df['N'], 1)) - np.dot(df['N'], np.roll(df['E'], 1)))
 
                 # --- BINA PETA ---
                 fig = go.Figure()
 
-                # 1. GARISAN LOT
+                # 1. LUKIS FILL (KAWASAN TENGAH)
+                fig.add_trace(go.Scattermapbox(
+                    lat=df_poly['lat'], lon=df_poly['lon'],
+                    mode='lines', fill="toself", fillcolor="rgba(255, 255, 0, 0.15)",
+                    line=dict(width=0), hoverinfo='skip', showlegend=False
+                ))
+
+                # 2. LUKIS SEMPADAN & TITIK STESEN
                 fig.add_trace(go.Scattermapbox(
                     lat=df_poly['lat'], lon=df_poly['lon'],
                     mode='lines+markers',
-                    fill="toself", fillcolor="rgba(255, 255, 0, 0.1)",
                     line=dict(width=3, color='yellow'),
                     marker=dict(size=10, color='red'),
-                    hoverinfo='skip'
+                    hoverinfo='skip', showlegend=False
                 ))
 
-                # 2. LABEL BEARING & JARAK (DIPAKSA MUNCUL)
-                if show_brg_dist:
-                    for i in range(len(df_poly)-1):
-                        p1, p2 = df_poly.iloc[i], df_poly.iloc[i+1]
-                        dist = np.sqrt((p2['E']-p1['E'])**2 + (p2['N']-p1['N'])**2)
-                        brg = np.degrees(np.arctan2(p2['E']-p1['E'], p2['N']-p1['N'])) % 360
-                        
-                        fig.add_trace(go.Scattermapbox(
-                            lat=[(p1['lat'] + p2['lat']) / 2],
-                            lon=[(p1['lon'] + p2['lon']) / 2],
-                            mode='text',
-                            text=[f"<b>{decimal_to_dms(brg)}</b><br>{dist:.3f}m"],
-                            textfont=dict(size=12, color="cyan", family="Arial Black"),
-                            textposition="middle center",
-                            hoverinfo='none'
-                        ))
+                # 3. LABEL KEKAL: NO STESEN (STN)
+                fig.add_trace(go.Scattermapbox(
+                    lat=df['lat'], lon=df['lon'],
+                    mode='text',
+                    text=df['STN'].astype(str),
+                    textposition="top right",
+                    textfont=dict(size=14, color="white", family="Arial Black"),
+                    hoverinfo='none', showlegend=False
+                ))
 
-                # 3. LABEL NO STESEN (DIPAKSA MUNCUL)
-                if show_stn:
+                # 4. LABEL KEKAL: BEARING & JARAK (PADA SETIAP GARISAN)
+                for i in range(len(df_poly)-1):
+                    p1, p2 = df_poly.iloc[i], df_poly.iloc[i+1]
+                    dist = np.sqrt((p2['E']-p1['E'])**2 + (p2['N']-p1['N'])**2)
+                    brg = np.degrees(np.arctan2(p2['E']-p1['E'], p2['N']-p1['N'])) % 360
+                    
                     fig.add_trace(go.Scattermapbox(
-                        lat=df['lat'], lon=df['lon'],
+                        lat=[(p1['lat'] + p2['lat']) / 2],
+                        lon=[(p1['lon'] + p2['lon']) / 2],
                         mode='text',
-                        text=df['STN'].astype(str),
-                        textfont=dict(size=15, color="white", family="Arial Black"),
-                        textposition="top right",
-                        hoverinfo='none'
-                    ))
-
-                # 4. LABEL LUAS (DI TENGAH LOT)
-                if show_area:
-                    area = 0.5 * np.abs(np.dot(df['E'], np.roll(df['N'], 1)) - np.dot(df['N'], np.roll(df['E'], 1)))
-                    fig.add_trace(go.Scattermapbox(
-                        lat=[center_lat], lon=[center_lon],
-                        mode='text',
-                        text=[f"<b>LUAS:<br>{area:.2f} m²</b>"],
-                        textfont=dict(size=20, color="yellow", family="Arial Black"),
+                        text=[f"<b>{decimal_to_dms(brg)}</b><br>{dist:.3f}m"],
+                        textfont=dict(size=11, color="cyan", family="Arial Black"),
                         textposition="middle center",
-                        hoverinfo='none'
+                        hoverinfo='none', showlegend=False
                     ))
+
+                # 5. LABEL KEKAL: LUAS (DI TENGAH LOT)
+                fig.add_trace(go.Scattermapbox(
+                    lat=[center_lat], lon=[center_lon],
+                    mode='text',
+                    text=[f"<b>LUAS:<br>{area:.2f} m²</b>"],
+                    textfont=dict(size=18, color="yellow", family="Arial Black"),
+                    textposition="middle center",
+                    hoverinfo='none', showlegend=False
+                ))
 
                 # --- KONFIGURASI LAYOUT ---
                 layers = []
@@ -157,3 +155,5 @@ if check_password():
 
         except Exception as e:
             st.error(f"Ralat: {e}")
+    else:
+        st.info("Sila muat naik fail CSV.")
