@@ -16,7 +16,7 @@ with col1:
     if os.path.exists(logo_path):
         st.image(logo_path, width=150)
     else:
-        st.title("📌")
+        st.subheader("📌 PUO")
 with col2:
     st.title("POLITEKNIK UNGKU OMAR")
     st.subheader("Jabatan Kejuruteraan Awam - Unit Geomatik")
@@ -47,9 +47,9 @@ if check_password():
     uploaded_file = st.sidebar.file_uploader("Muat Naik CSV (STN, E, N)", type=["csv"])
     
     st.sidebar.header("⚙️ Tetapan Peta")
-    show_satellite = st.sidebar.checkbox("🌏 Buka Layer Satelit", value=True)
+    show_satellite = st.sidebar.checkbox("🌏 Layer Satelit", value=True)
     epsg_input = st.sidebar.text_input("Kod EPSG (Cth: 4390):", value="4390")
-    zoom_val = st.sidebar.slider("🔍 Zoom:", 15, 22, 20)
+    zoom_val = st.sidebar.slider("🔍 Zoom:", 15, 22, 19)
     
     st.sidebar.subheader("🏷️ Kawalan Label")
     show_stn = st.sidebar.checkbox("Papar No. Stesen", value=True)
@@ -82,56 +82,57 @@ if check_password():
                 # --- BINA PETA ---
                 fig = go.Figure()
 
-                # 1. LUKIS GARISAN LOT
+                # 1. GARISAN LOT
                 fig.add_trace(go.Scattermapbox(
                     lat=df_poly['lat'], lon=df_poly['lon'],
                     mode='lines+markers',
                     fill="toself", fillcolor="rgba(255, 255, 0, 0.1)",
                     line=dict(width=3, color='yellow'),
-                    marker=dict(size=8, color='red'),
+                    marker=dict(size=10, color='red'),
                     hoverinfo='skip'
                 ))
 
-                # 2. LABEL BEARING & JARAK
+                # 2. LABEL BEARING & JARAK (DIPAKSA MUNCUL)
                 if show_brg_dist:
                     for i in range(len(df_poly)-1):
                         p1, p2 = df_poly.iloc[i], df_poly.iloc[i+1]
                         dist = np.sqrt((p2['E']-p1['E'])**2 + (p2['N']-p1['N'])**2)
                         brg = np.degrees(np.arctan2(p2['E']-p1['E'], p2['N']-p1['N'])) % 360
-                        m_lat, m_lon = (p1['lat'] + p2['lat'])/2, (p1['lon'] + p2['lon'])/2
                         
                         fig.add_trace(go.Scattermapbox(
-                            lat=[m_lat], lon=[m_lon],
+                            lat=[(p1['lat'] + p2['lat']) / 2],
+                            lon=[(p1['lon'] + p2['lon']) / 2],
                             mode='text',
                             text=[f"<b>{decimal_to_dms(brg)}</b><br>{dist:.3f}m"],
                             textfont=dict(size=12, color="cyan", family="Arial Black"),
-                            showlegend=False
+                            textposition="middle center",
+                            hoverinfo='none'
                         ))
 
-                # 3. LABEL NO STESEN
+                # 3. LABEL NO STESEN (DIPAKSA MUNCUL)
                 if show_stn:
                     fig.add_trace(go.Scattermapbox(
                         lat=df['lat'], lon=df['lon'],
-                        mode='markers+text',
+                        mode='text',
                         text=df['STN'].astype(str),
+                        textfont=dict(size=15, color="white", family="Arial Black"),
                         textposition="top right",
-                        marker=dict(size=0, opacity=0), # Marker halimunan supaya teks saja nampak
-                        textfont=dict(size=14, color="white", family="Arial Black"),
-                        showlegend=False
+                        hoverinfo='none'
                     ))
 
-                # 4. LABEL LUAS
+                # 4. LABEL LUAS (DI TENGAH LOT)
                 if show_area:
                     area = 0.5 * np.abs(np.dot(df['E'], np.roll(df['N'], 1)) - np.dot(df['N'], np.roll(df['E'], 1)))
                     fig.add_trace(go.Scattermapbox(
                         lat=[center_lat], lon=[center_lon],
                         mode='text',
                         text=[f"<b>LUAS:<br>{area:.2f} m²</b>"],
-                        textfont=dict(size=18, color="yellow", family="Arial Black"),
-                        showlegend=False
+                        textfont=dict(size=20, color="yellow", family="Arial Black"),
+                        textposition="middle center",
+                        hoverinfo='none'
                     ))
 
-                # --- LAYOUT & FIX LAYER ---
+                # --- KONFIGURASI LAYOUT ---
                 layers = []
                 if show_satellite:
                     layers = [{"below": 'traces', "sourcetype": "raster", "source": ["https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}"]}]
@@ -144,7 +145,7 @@ if check_password():
                         zoom=zoom_val
                     ),
                     margin={"r":0,"t":0,"l":0,"b":0},
-                    height=750,
+                    height=800,
                     showlegend=False
                 )
 
@@ -156,5 +157,3 @@ if check_password():
 
         except Exception as e:
             st.error(f"Ralat: {e}")
-    else:
-        st.info("Sila muat naik fail CSV.")
