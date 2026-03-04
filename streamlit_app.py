@@ -113,10 +113,17 @@ else:
 
             # --- 2. LABEL NO STESEN (STATIK) ---
             if show_stn:
+                # Mencipta senarai teks yang mengandungi STN, N, dan E
+                label_texts = [
+                    f"<b>{row['STN']}</b><br>N: {row['N']:.3f}<br>E: {row['E']:.3f}" 
+                    for _, row in df.iterrows()
+                ]
+                
                 fig.add_trace(go.Scattermapbox(
-                    lat=df['lat'], lon=df['lon'], 
+                    lat=df['lat'], 
+                    lon=df['lon'], 
                     mode='text',
-                    text=df['STN'].astype(str), 
+                    text=label_texts, 
                     textposition="top right",
                     textfont=dict(size=size_stn, color="white", family="Arial Black"),
                     hoverinfo='skip'
@@ -172,3 +179,4 @@ else:
 
         except Exception as e:
             st.error(f"Ralat: {e}")
+
