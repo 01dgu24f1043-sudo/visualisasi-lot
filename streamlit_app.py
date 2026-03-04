@@ -23,7 +23,7 @@ def login_page():
     col_l, col_m, col_r = st.columns([1, 1, 1])
     
     with col_m:
-        st.markdown("<h2 style='text-align: center;'>SISTEM LOGIN</h2>", unsafe_allow_html=True)
+        st.markdown("<h2 style='text-align: center;'>🔐 Sistem Survey Lot PUO</h2>", unsafe_allow_html=True)
         
         # Menu pilihan antara Login atau Lupa Password
         tab1, tab2 = st.tabs(["Log Masuk", "Lupa Kata Laluan"])
@@ -172,3 +172,4 @@ else:
 
         except Exception as e:
             st.error(f"Ralat: {e}")
+
