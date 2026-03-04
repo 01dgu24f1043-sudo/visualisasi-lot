@@ -66,15 +66,26 @@ else:
 
     # --- HEADER (LOGO & TAJUK) ---
     logo_path = "politeknik-ungku-umar-seeklogo-removebg-preview.png"
-    col1, col2 = st.columns([1, 5])
+    col1, col2, col3 = st.columns([1, 4, 1.5]) # Tambah kolum ketiga untuk ucapan
+    
     with col1:
         if os.path.exists(logo_path):
-            st.image(logo_path, width=150)
+            st.image(logo_path, width=120)
         else:
             st.info("Logo PUO")
+            
     with col2:
         st.title("POLITEKNIK UNGKU OMAR")
-        st.subheader(f"Unit Geomatik - Selamat Datang, {st.session_state['user_id']}")
+        st.subheader("Jabatan Kejuruteraan Awam - Unit Geomatik")
+        
+    with col3:
+        # Paparan "HI ID_PENGGUNA" secara dinamik
+        st.markdown(f"""
+            <div style="background-color: #f0f2f6; padding: 10px; border-radius: 10px; border-left: 5px solid #ff4b4b; margin-top: 20px;">
+                <p style="margin: 0; font-size: 14px; color: #31333F;">Selamat Datang,</p>
+                <h3 style="margin: 0; color: #ff4b4b;">HI {st.session_state['user_id']}</h3>
+            </div>
+        """, unsafe_allow_html=True)
 
     st.markdown("---")
 
@@ -172,5 +183,6 @@ else:
 
         except Exception as e:
             st.error(f"Ralat: {e}")
+
 
 
