@@ -70,9 +70,8 @@ else:
     st.sidebar.header("⚙️ Tetapan Peta")
     show_satellite = st.sidebar.checkbox("🌏 Buka Layer Satelit", value=True)
     zoom_val = st.sidebar.slider("🔍 Zum Peta:", 15, 22, 19)
-    epsg_input = st.sidebar.text_input("Kod EPSG:", value="4390")
     
-    # --- KAWALAN SAIZ TULISAN ---
+    # --- KAWALAN SAIZ TULISAN (BARU) ---
     st.sidebar.subheader("📏 Saiz Tulisan Label")
     size_stn = st.sidebar.slider("Saiz No. Stesen:", 10, 30, 14)
     size_brg = st.sidebar.slider("Saiz Bearing & Jarak:", 8, 25, 11)
@@ -93,7 +92,8 @@ else:
             df = pd.read_csv(uploaded_file)
             df.columns = df.columns.str.strip().str.upper()
             
-            # Transformasi
+            # EPSG input dari sidebar
+            epsg_input = st.sidebar.text_input("Kod EPSG:", value="4390")
             transformer = Transformer.from_crs(f"EPSG:{epsg_input}", "EPSG:4326", always_xy=True)
             lon, lat = transformer.transform(df['E'].values, df['N'].values)
             df['lon'], df['lat'] = lon, lat
@@ -101,35 +101,22 @@ else:
 
             fig = go.Figure()
 
-            # --- 1. LUKIS SEMPADAN (DENGAN HOVER AKTIF) ---
+            # Lukis Poligon
             fig.add_trace(go.Scattermapbox(
                 lat=df_poly['lat'], lon=df_poly['lon'],
                 mode='lines+markers', fill="toself", fillcolor="rgba(255, 255, 0, 0.1)",
-                line=dict(width=3, color='yellow'), 
-                marker=dict(size=10, color='red'),
-                hoverinfo='all', # Ini akan mengeluarkan maklumat bila disentuh
-                name="Lot Sempadan"
+                line=dict(width=3, color='yellow'), marker=dict(size=8, color='red')
             ))
 
-            # --- 2. LABEL NO STESEN (STATIK) ---
+            # 1. Label No Stesen
             if show_stn:
-                # Mencipta senarai teks yang mengandungi STN, N, dan E
-                label_texts = [
-                    f"<b>{row['STN']}</b><br>N: {row['N']:.3f}<br>E: {row['E']:.3f}" 
-                    for _, row in df.iterrows()
-                ]
-                
                 fig.add_trace(go.Scattermapbox(
-                    lat=df['lat'], 
-                    lon=df['lon'], 
-                    mode='text',
-                    text=label_texts, 
-                    textposition="top right",
-                    textfont=dict(size=size_stn, color="white", family="Arial Black"),
-                    hoverinfo='skip'
+                    lat=df['lat'], lon=df['lon'], mode='text',
+                    text=df['STN'].astype(str), textposition="top right",
+                    textfont=dict(size=size_stn, color="white", family="Arial Black")
                 ))
 
-            # --- 3. LABEL BEARING & JARAK (STATIK) ---
+            # 2. Label Bearing & Jarak
             if show_brg_dist:
                 for i in range(len(df_poly)-1):
                     p1, p2 = df_poly.iloc[i], df_poly.iloc[i+1]
@@ -137,46 +124,32 @@ else:
                     brg = np.degrees(np.arctan2(p2['E']-p1['E'], p2['N']-p1['N'])) % 360
                     fig.add_trace(go.Scattermapbox(
                         lat=[(p1['lat']+p2['lat'])/2], lon=[(p1['lon']+p2['lon'])/2],
-                        mode='text', 
-                        text=[f"<b>{decimal_to_dms(brg)}</b><br>{dist:.3f}m"],
-                        textfont=dict(size=size_brg, color="cyan", family="Arial Black"),
-                        hoverinfo='skip'
+                        mode='text', text=[f"<b>{decimal_to_dms(brg)}</b><br>{dist:.3f}m"],
+                        textfont=dict(size=size_brg, color="cyan", family="Arial Black")
                     ))
 
-            # --- 4. LABEL LUAS (STATIK) ---
+            # 3. Label Luas
             if show_area:
                 area = 0.5 * np.abs(np.dot(df['E'], np.roll(df['N'], 1)) - np.dot(df['N'], np.roll(df['E'], 1)))
                 fig.add_trace(go.Scattermapbox(
-                    lat=[df['lat'].mean()], lon=[df['lon'].mean()], 
-                    mode='text',
+                    lat=[df['lat'].mean()], lon=[df['lon'].mean()], mode='text',
                     text=[f"<b>LUAS:<br>{area:.2f} m²</b>"],
-                    textfont=dict(size=size_area, color="yellow", family="Arial Black"),
-                    hoverinfo='skip'
+                    textfont=dict(size=size_area, color="yellow", family="Arial Black")
                 ))
 
-            # LAYOUT & SATELIT
             layers = []
             if show_satellite:
                 layers = [{"below": 'traces', "sourcetype": "raster", "source": ["https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}"]}]
 
             fig.update_layout(
-                mapbox=dict(
-                    style="white-bg", 
-                    layers=layers, 
-                    center=dict(lat=df['lat'].mean(), lon=df['lon'].mean()), 
-                    zoom=zoom_val
-                ),
-                margin={"r":0,"t":0,"l":0,"b":0}, 
-                height=750, 
-                showlegend=False
+                mapbox=dict(style="white-bg", layers=layers, center=dict(lat=df['lat'].mean(), lon=df['lon'].mean()), zoom=zoom_val),
+                margin={"r":0,"t":0,"l":0,"b":0}, height=750, showlegend=False
             )
 
             st.plotly_chart(fig, use_container_width=True)
-
             if st.sidebar.button("Log Keluar"):
                 st.session_state["logged_in"] = False
                 st.rerun()
 
         except Exception as e:
             st.error(f"Ralat: {e}")
-
