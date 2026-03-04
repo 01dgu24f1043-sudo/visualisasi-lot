@@ -57,7 +57,7 @@ else:
         st.markdown(f"""
             <div style="background-color: #f0f2f6; padding: 10px; border-radius: 10px; border-left: 5px solid #ff4b4b; margin-top: 20px;">
                 <p style="margin: 0; font-size: 14px; color: #31333F;">Selamat Datang,</p>
-                <h3 style="margin: 0; color: #ff4b4b;">HI {st.session_state['user_id']}</h3>
+                <h3 style="margin: 0; color: #ff4b4b;">Selamat Datang {st.session_state['user_id']}</h3>
             </div>
         """, unsafe_allow_html=True)
 
@@ -153,3 +153,4 @@ else:
 
         except Exception as e:
             st.error(f"Ralat: {e}")
+
