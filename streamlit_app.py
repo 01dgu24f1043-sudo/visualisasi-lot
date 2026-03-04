@@ -58,25 +58,26 @@ else:
 
             fig = go.Figure()
 
-            # 1. TRACE SEMPADAN & FILL (Kuning)
-            fig.add_trace(go.Scattermapbox(
-                lat=df_poly['lat'], lon=df_poly['lon'],
-                mode='lines+markers',
-                fill="toself", fillcolor="rgba(255, 255, 0, 0.15)",
-                line=dict(width=3, color='yellow'),
-                marker=dict(size=10, color='red'),
-                hoverinfo='none' # Matikan hover box
-            ))
+            # 1. TRACE SEMPADAN (Sekarang boleh disentuh semula)
+fig.add_trace(go.Scattermapbox(
+    lat=df_poly['lat'], lon=df_poly['lon'],
+    mode='lines+markers',
+    fill="toself", fillcolor="rgba(255, 255, 0, 0.15)",
+    line=dict(width=3, color='yellow'),
+    marker=dict(size=10, color='red'),
+    hoverinfo='all' # Mengembalikan fungsi sentuh (hover)
+))
 
-            # 2. LABEL NO STESEN (SENTIASA MUNCUL)
-            fig.add_trace(go.Scattermapbox(
-                lat=df['lat'], lon=df['lon'],
-                mode='text',
-                text=df['STN'].astype(str),
-                textposition="top center",
-                textfont=dict(size=size_stn, color="yellow", family="Arial Black"),
-                hoverinfo='none'
-            ))
+# 2. LABEL NO STESEN (Sentiasa muncul sebagai teks statik)
+fig.add_trace(go.Scattermapbox(
+    lat=df['lat'], lon=df['lon'],
+    mode='text',
+    text=df['STN'].astype(str),
+    textposition="top right",
+    # Pastikan saiz cukup besar (guna slider saiz_stn)
+    textfont=dict(size=size_stn, color="white", family="Arial Black"),
+    hoverinfo='skip' # Teks statik tidak perlu hover box lain
+))
 
             # 3. LABEL BEARING & JARAK (SENTIASA MUNCUL PADA SETIAP GARISAN)
             for i in range(len(df_poly)-1):
@@ -124,3 +125,4 @@ else:
 
         except Exception as e:
             st.error(f"Sila pastikan format CSV betul (STN, E, N). Ralat: {e}")
+
