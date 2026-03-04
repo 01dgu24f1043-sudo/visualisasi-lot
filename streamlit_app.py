@@ -12,8 +12,8 @@ st.set_page_config(page_title="Sistem Lot Geomatik PUO", layout="wide")
 # --- SIMULASI DATA PENGGUNA ---
 # Dalam sistem sebenar, ini biasanya diambil dari database
 USER_CREDENTIALS = {
-    "admin1": "puo123",
-    "pelajar": "geomatik2024",
+    "01dgu24f1043": "12345",
+    "01dgu24f1013": "Nafiz0921",
     "pensyarah": "jka123"
 }
 
@@ -172,4 +172,5 @@ else:
 
         except Exception as e:
             st.error(f"Ralat: {e}")
+
 
