@@ -80,13 +80,13 @@ else:
     st.sidebar.header("📁 Fail Data")
     uploaded_file = st.sidebar.file_uploader("Upload CSV (Mesti ada STN, E, N)", type=["csv"])
 
-    st.sidebar.header("🛠️ Tetapan Paparan")
+    st.sidebar.header("⚙️ Tetapan Paparan")
     size_stn = st.sidebar.slider("Saiz No Stesen", 10, 40, 15)
     size_brg = st.sidebar.slider("Saiz Bearing/Jarak", 8, 30, 12)
     size_area = st.sidebar.slider("Saiz Luas (Tengah)", 15, 60, 25)
     
-    show_satellite = st.sidebar.checkbox("Layer Satellite", True)
-    zoom_val = st.sidebar.slider("Zoom Level", 10, 22, 18)
+    show_satellite = st.sidebar.checkbox(""🌏 Buka Layer Satelit", True)
+    zoom_val = st.sidebar.slider("🔍 Zoom Level", 10, 22, 18)
 
     def decimal_to_dms(deg):
         d = int(deg); m = int((deg - d) * 60); s = int(round((deg - d - m/60) * 3600))
@@ -200,3 +200,4 @@ else:
 
         except Exception as e:
             st.error(f"Sila pastikan format CSV betul (STN, E, N). Ralat: {e}")
+
