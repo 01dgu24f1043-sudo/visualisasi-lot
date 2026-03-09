@@ -85,8 +85,8 @@ else:
     size_brg = st.sidebar.slider("Saiz Bearing/Jarak", 8, 30, 12)
     size_area = st.sidebar.slider("Saiz Luas (Tengah)", 15, 60, 25)
     
-    show_satellite = st.sidebar.checkbox(""🌏 Buka Layer Satelit", True)
-    zoom_val = st.sidebar.slider("🔍 Zoom Level", 10, 22, 18)
+    # Gantikan baris 88 asal dengan ini:
+    show_satellite = st.sidebar.checkbox("🌏 Buka Layer Satelit", True)
 
     def decimal_to_dms(deg):
         d = int(deg); m = int((deg - d) * 60); s = int(round((deg - d - m/60) * 3600))
@@ -124,17 +124,24 @@ else:
                 text=f"MAKLUMAT LOT:<br>Luas: {area:.3f} m²<br>Perimeter: {perimeter:.3f} m"
             ))
 
-            # 2. STESEN (Hover keluar Koordinat E, N)
-            fig.add_trace(go.Scattermapbox(
-                lat=df['lat'], lon=df['lon'],
-                mode='markers+text',
-                marker=dict(size=10, color="red"),
-                text=df['STN'].astype(str),
-                textposition="top center",
-                textfont=dict(size=size_stn, color="white"),
-                hoverinfo="text",
-                hovertext=[f"STN: {s}<br>E: {e:.3f}<br>N: {n:.3f}" for s, e, n in zip(df['STN'], df['E'], df['N'])]
-            ))
+            # --- 2. STESEN (Label N & E Statik) ---
+            if show_stn:
+                # Membina label teks: No Stesen, N, dan E secara menegak
+                label_n_e = [
+                    f"<b>{row['STN']}</b><br>N: {row['N']:.3f}<br>E: {row['E']:.3f}" 
+                    for _, row in df.iterrows()
+                ]
+                
+                fig.add_trace(go.Scattermapbox(
+                    lat=df['lat'], lon=df['lon'],
+                    mode='markers+text',
+                    marker=dict(size=10, color="red"),
+                    text=label_n_e, # Menggunakan label N & E yang baru dibina
+                    textposition="top right",
+                    textfont=dict(size=size_stn, color="white", family="Arial Black"),
+                    hoverinfo="text",
+                    hovertext=[f"STN: {s}" for s in df['STN']]
+                ))
 
             # 3. BEARING & JARAK
             offset_dist = 0.000015
@@ -200,4 +207,5 @@ else:
 
         except Exception as e:
             st.error(f"Sila pastikan format CSV betul (STN, E, N). Ralat: {e}")
+
 
