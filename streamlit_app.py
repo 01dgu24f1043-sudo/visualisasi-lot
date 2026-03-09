@@ -178,55 +178,94 @@ else:
 
                 ))
 
-            # BEARING LABEL
-            if show_brg_dist:
+            # ==============================
+  # BEARING & DISTANCE LABEL
+# ==============================
 
-                offset = 0.00002
+         if show_brg_dist:
 
-                for i in range(len(df_poly)-1):
+             offset = 0.000015
 
-                    p1 = df_poly.iloc[i]
-                    p2 = df_poly.iloc[i+1]
+           for i in range(len(df_poly)-1):
 
-                    dE = p2['E'] - p1['E']
-                    dN = p2['N'] - p1['N']
+        p1 = df_poly.iloc[i]
+        p2 = df_poly.iloc[i+1]
 
-                    dist = np.sqrt(dE**2 + dN**2)
+        dE = p2['E'] - p1['E']
+        dN = p2['N'] - p1['N']
 
-                    brg = np.degrees(np.arctan2(dE, dN)) % 360
+        dist = np.sqrt(dE**2 + dN**2)
 
-                    mid_lat = (p1['lat'] + p2['lat']) / 2
-                    mid_lon = (p1['lon'] + p2['lon']) / 2
+        brg = np.degrees(np.arctan2(dE, dN)) % 360
 
-                    dx = p2['lon'] - p1['lon']
-                    dy = p2['lat'] - p1['lat']
+        # midpoint
+        mid_lat = (p1['lat'] + p2['lat']) / 2
+        mid_lon = (p1['lon'] + p2['lon']) / 2
 
-                    length = np.sqrt(dx**2 + dy**2)
+        # direction vector
+        dx = p2['lon'] - p1['lon']
+        dy = p2['lat'] - p1['lat']
 
-                    nx = -dy / length
-                    ny = dx / length
+        length = np.sqrt(dx**2 + dy**2)
 
-                    label_lat = mid_lat + ny * offset
-                    label_lon = mid_lon + nx * offset
+        # normal direction
+        nx = -dy / length
+        ny = dx / length
 
-                    fig.add_trace(go.Scattermapbox(
+        # label position
+        lat_brg = mid_lat + ny * offset
+        lon_brg = mid_lon + nx * offset
 
-                        lat=[label_lat],
-                        lon=[label_lon],
+        lat_dist = mid_lat - ny * offset
+        lon_dist = mid_lon - nx * offset
 
-                        mode="text",
+        # rotation angle ikut line
+        angle = np.degrees(np.arctan2(dy, dx))
 
-                        text=[f"{decimal_to_dms(brg)}<br>{dist:.3f}m"],
+        # supaya text tidak terbalik
+        if angle > 90 or angle < -90:
+            angle += 180
 
-                        textfont=dict(
-                            size=size_brg,
-                            color="cyan"
-                        ),
+        # ===== BEARING (atas line)
+        fig.add_trace(go.Scattermapbox(
 
-                        textposition="middle center"
+            lat=[lat_brg],
+            lon=[lon_brg],
 
-                    ))
+            mode="text",
 
+            text=[decimal_to_dms(brg)],
+
+            textfont=dict(
+                size=size_brg,
+                color="cyan"
+            ),
+
+            textangle=angle,
+            textposition="middle center"
+
+        
+
+        ))
+        # ===== DISTANCE (bawah line)
+        fig.add_trace(go.Scattermapbox(
+
+            lat=[lat_dist],
+            lon=[lon_dist],
+
+            mode="text",
+
+            text=[f"{dist:.3f} m"],
+
+            textfont=dict(
+                size=size_brg,
+                color="cyan"
+            ),
+
+            textangle=angle,
+            textposition="middle center"
+
+           ))
             # AREA LABEL
             if show_area:
 
@@ -319,3 +358,4 @@ else:
         except Exception as e:
 
             st.error(f"Ralat: {e}")
+
