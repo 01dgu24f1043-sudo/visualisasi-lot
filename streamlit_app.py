@@ -13,7 +13,7 @@ st.set_page_config(page_title="Sistem Lot Geomatik PUO", layout="wide")
 if "user_db" not in st.session_state:
     st.session_state["user_db"] = {
         "1": {"nama": "Admin", "pwd": "123"},
-        "01dgu24f1043": {"nama": "Alif", "pwd": "123"},
+        "01dgu24f1043": {"nama": "Ahmad", "pwd": "123"},
         "01dgu24f1013": {"nama": "Nafiz", "pwd": "456"}
     }
 
@@ -26,7 +26,7 @@ def decimal_to_dms(deg):
     if s >= 60: s = 0; m += 1
     return f"{d}°{m:02d}'{s:02d}\""
 
-# --- RESET PASSWORD ---
+# --- HALAMAN RESET PASSWORD ---
 if st.session_state.get("reset_mode", False):
     st.markdown("### 🔑 Set Semula Kata Laluan")
     uid = st.text_input("ID untuk set semula")
@@ -43,7 +43,7 @@ if st.session_state.get("reset_mode", False):
         st.rerun()
     st.stop()
 
-# --- LOGIN PAGE ---
+# --- HALAMAN LOGIN ---
 if not st.session_state["logged_in"]:
     col_l, col_m, col_r = st.columns([1, 1, 1])
     with col_m:
@@ -63,11 +63,11 @@ if not st.session_state["logged_in"]:
             st.rerun()
     st.stop()
 
-# --- MAIN APP ---
+# --- APLIKASI UTAMA (LOGGED IN) ---
+
+# Sidebar Header
 st.sidebar.markdown(f"### 👋 Hi, {st.session_state['user_name']}")
-if st.sidebar.button("🚪 Log Keluar"):
-    st.session_state["logged_in"] = False
-    st.rerun()
+st.sidebar.markdown("---")
 
 st.title("POLITEKNIK UNGKU OMAR")
 st.subheader(f"Unit Geomatik - Selamat Datang, {st.session_state['user_name'].upper()}")
@@ -75,7 +75,6 @@ st.subheader(f"Unit Geomatik - Selamat Datang, {st.session_state['user_name'].up
 # --- SIDEBAR SETTINGS ---
 uploaded_file = st.sidebar.file_uploader("Upload CSV (STN, E, N)", type=["csv"])
 
-# BARU: ON/OFF SETTINGS
 st.sidebar.header("👁️ Kawalan Paparan (On/Off)")
 show_stn = st.sidebar.checkbox("Paparkan No Stesen", value=True)
 show_brg = st.sidebar.checkbox("Paparkan Bearing/Jarak", value=True)
@@ -96,8 +95,13 @@ if uploaded_file:
         
         center_lat, center_lon = df['lat'].mean(), df['lon'].mean()
         m = folium.Map(location=[center_lat, center_lon], zoom_start=19, max_zoom=22, tiles=None)
-        folium.TileLayer(tiles='https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', attr='Google', name='Google Satellite', max_zoom=22, max_native_zoom=20).add_to(m)
-        Fullscreen().add_to(m)
+        
+        folium.TileLayer(
+            tiles='https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', 
+            attr='Google', name='Google Satellite', max_zoom=22, max_native_zoom=20
+        ).add_to(m)
+        
+        Fullscreen(position="topright").add_to(m)
 
         points = []
         total_dist = 0
@@ -123,9 +127,9 @@ if uploaded_file:
                 </div>'''
                 folium.Marker([ (p1['lat']+p2['lat'])/2, (p1['lon']+p2['lon'])/2 ], icon=folium.DivIcon(html=l_html)).add_to(m)
 
-            # Titik Stesen & Koordinat (Pop-up)
+            # Titik Stesen & Koordinat Popup
             stn_popup = f"<b>STN {int(p1['STN'])}</b><br>E: {p1['E']:.3f}<br>N: {p1['N']:.3f}"
-            folium.CircleMarker(loc1, radius=3, color="red", fill=True, popup=stn_popup).add_to(m)
+            folium.CircleMarker(loc1, radius=4, color="white", fill=True, fill_color="red", popup=stn_popup).add_to(m)
             
             # Label No Stesen (Logic On/Off)
             if show_stn:
@@ -138,12 +142,18 @@ if uploaded_file:
             poly_info = f"<b>Info Lot</b><hr>Luas: {area:.3f} m²<br>Perimeter: {total_dist:.3f} m"
             folium.Polygon(locations=points, color='yellow', weight=3, fill=True, fill_opacity=0.15, popup=poly_info).add_to(m)
 
-        # Butang Export GeoJSON
+        # Download Buttons & Info
+        st.sidebar.markdown("---")
+        st.sidebar.info(f"📐 Luas: {area:.3f} m²\n\n📏 Perimeter: {total_dist:.3f} m")
         geojson = {"type": "FeatureCollection", "features": [{"type": "Feature", "geometry": {"type": "Polygon", "coordinates": [[ [p[1], p[0]] for p in points ] + [[points[0][1], points[0][0]]]]}, "properties": {"Luas": area}}]}
-        st.sidebar.download_button("📥 Export QGIS (GeoJSON)", data=json.dumps(geojson), file_name="lot.geojson")
+        st.sidebar.download_button("📥 Export QGIS (GeoJSON)", data=json.dumps(geojson), file_name="lot_puo.geojson", use_container_width=True)
         
-        st.sidebar.info(f"📐 Luas: {area:.3f} m²\n📏 Perimeter: {total_dist:.3f} m")
         st_folium(m, width="100%", height=700)
 
     except Exception as e: st.error(f"Ralat Fail: {e}")
 
+# --- TOLAK LOGOUT KE BAWAH SEKALI ---
+st.sidebar.markdown("<br>" * 10, unsafe_allow_html=True) # Mencipta ruang kosong
+if st.sidebar.button("🚪 Log Keluar", use_container_width=True):
+    st.session_state["logged_in"] = False
+    st.rerun()
