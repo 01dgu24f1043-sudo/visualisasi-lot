@@ -184,37 +184,52 @@ else:
                 ))
 
             # BEARING LABEL
-            if show_brg_dist:
+            offset = 0.00002
 
-                offset = 0.00002
+for i in range(len(df_poly)-1):
 
-                for i in range(len(df_poly)-1):
+    p1 = df_poly.iloc[i]
+    p2 = df_poly.iloc[i+1]
 
-                    p1 = df_poly.iloc[i]
-                    p2 = df_poly.iloc[i+1]
+    dE = p2['E'] - p1['E']
+    dN = p2['N'] - p1['N']
 
-                    dist = np.sqrt((p2['E']-p1['E'])**2+(p2['N']-p1['N'])**2)
+    dist = np.sqrt(dE**2 + dN**2)
 
-                    brg = np.degrees(np.arctan2(p2['E']-p1['E'],p2['N']-p1['N']))%360
+    brg = np.degrees(np.arctan2(dE, dN)) % 360
 
-                    mid_lat = (p1['lat']+p2['lat'])/2 + offset
-                    mid_lon = (p1['lon']+p2['lon'])/2 + offset
+    mid_lat = (p1['lat'] + p2['lat']) / 2
+    mid_lon = (p1['lon'] + p2['lon']) / 2
 
-                    fig.add_trace(go.Scattermapbox(
+    # kira arah normal garisan untuk offset label
+    dx = p2['lon'] - p1['lon']
+    dy = p2['lat'] - p1['lat']
 
-                        lat=[mid_lat],
-                        lon=[mid_lon],
+    length = np.sqrt(dx**2 + dy**2)
 
-                        mode="text",
+    nx = -dy / length
+    ny = dx / length
 
-                        text=[f"{decimal_to_dms(brg)}<br>{dist:.3f}m"],
+    label_lat = mid_lat + ny * offset
+    label_lon = mid_lon + nx * offset
 
-                        textfont=dict(
-                            size=size_brg,
-                            color="cyan"
-                        )
+    fig.add_trace(go.Scattermapbox(
 
-                    ))
+        lat=[label_lat],
+        lon=[label_lon],
+
+        mode="text",
+
+        text=[f"{decimal_to_dms(brg)}<br>{dist:.3f}m"],
+
+        textfont=dict(
+            size=size_brg,
+            color="cyan"
+        ),
+
+        textposition="middle center"
+
+    ))
 
             # AREA LABEL
             if show_area:
@@ -232,7 +247,7 @@ else:
 
                     mode="text",
 
-                    text=[f"<b>{lot_number}</b><br>LUAS<br>{area:.2f} m²"],
+                    text=[f"LUAS<br>{area:.2f} m²"],
 
                     textfont=dict(
                         size=size_area,
@@ -313,3 +328,4 @@ else:
         except Exception as e:
 
             st.error(f"Ralat: {e}")
+
