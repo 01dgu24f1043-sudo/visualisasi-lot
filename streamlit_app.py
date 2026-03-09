@@ -54,7 +54,6 @@ def login_page():
 
                     st.error("ID tidak ditemui")
 
-
 if "logged_in" not in st.session_state:
     st.session_state["logged_in"]=False
 
@@ -97,15 +96,11 @@ else:
     show_satellite = st.sidebar.checkbox("Layer Satellite",True)
     zoom_val = st.sidebar.slider("Zoom",15,22,19)
 
-    st.sidebar.subheader("Maklumat Lot")
-
-    lot_number = st.sidebar.text_input("Lot Number","LOT 1234")
-
     st.sidebar.subheader("Saiz Tulisan")
 
     size_stn = st.sidebar.slider("No Stesen",10,30,14)
     size_brg = st.sidebar.slider("Bearing",8,25,11)
-    size_area = st.sidebar.slider("Lot Label",15,40,20)
+    size_area = st.sidebar.slider("Luas",15,40,20)
 
     st.sidebar.subheader("Paparan Label")
 
@@ -184,52 +179,53 @@ else:
                 ))
 
             # BEARING LABEL
-            offset = 0.00002
+            if show_brg_dist:
 
-for i in range(len(df_poly)-1):
+                offset = 0.00002
 
-    p1 = df_poly.iloc[i]
-    p2 = df_poly.iloc[i+1]
+                for i in range(len(df_poly)-1):
 
-    dE = p2['E'] - p1['E']
-    dN = p2['N'] - p1['N']
+                    p1 = df_poly.iloc[i]
+                    p2 = df_poly.iloc[i+1]
 
-    dist = np.sqrt(dE**2 + dN**2)
+                    dE = p2['E'] - p1['E']
+                    dN = p2['N'] - p1['N']
 
-    brg = np.degrees(np.arctan2(dE, dN)) % 360
+                    dist = np.sqrt(dE**2 + dN**2)
 
-    mid_lat = (p1['lat'] + p2['lat']) / 2
-    mid_lon = (p1['lon'] + p2['lon']) / 2
+                    brg = np.degrees(np.arctan2(dE, dN)) % 360
 
-    # kira arah normal garisan untuk offset label
-    dx = p2['lon'] - p1['lon']
-    dy = p2['lat'] - p1['lat']
+                    mid_lat = (p1['lat'] + p2['lat']) / 2
+                    mid_lon = (p1['lon'] + p2['lon']) / 2
 
-    length = np.sqrt(dx**2 + dy**2)
+                    dx = p2['lon'] - p1['lon']
+                    dy = p2['lat'] - p1['lat']
 
-    nx = -dy / length
-    ny = dx / length
+                    length = np.sqrt(dx**2 + dy**2)
 
-    label_lat = mid_lat + ny * offset
-    label_lon = mid_lon + nx * offset
+                    nx = -dy / length
+                    ny = dx / length
 
-    fig.add_trace(go.Scattermapbox(
+                    label_lat = mid_lat + ny * offset
+                    label_lon = mid_lon + nx * offset
 
-        lat=[label_lat],
-        lon=[label_lon],
+                    fig.add_trace(go.Scattermapbox(
 
-        mode="text",
+                        lat=[label_lat],
+                        lon=[label_lon],
 
-        text=[f"{decimal_to_dms(brg)}<br>{dist:.3f}m"],
+                        mode="text",
 
-        textfont=dict(
-            size=size_brg,
-            color="cyan"
-        ),
+                        text=[f"{decimal_to_dms(brg)}<br>{dist:.3f}m"],
 
-        textposition="middle center"
+                        textfont=dict(
+                            size=size_brg,
+                            color="cyan"
+                        ),
 
-    ))
+                        textposition="middle center"
+
+                    ))
 
             # AREA LABEL
             if show_area:
@@ -309,15 +305,10 @@ for i in range(len(df_poly)-1):
             csv = table_df.to_csv(index=False).encode('utf-8')
 
             st.download_button(
-
                 "Download Coordinate Table",
-
                 csv,
-
                 "coordinate_lot.csv",
-
                 "text/csv"
-
             )
 
             if st.sidebar.button("Log Keluar"):
@@ -328,4 +319,3 @@ for i in range(len(df_poly)-1):
         except Exception as e:
 
             st.error(f"Ralat: {e}")
-
