@@ -8,7 +8,7 @@ import io
 
 st.set_page_config(page_title="Sistem Lot Geomatik PUO", layout="wide")
 
-# --- DATABASE PENGGUNA (Simulasi) ---
+# --- DATABASE PENGGUNA ---
 if "user_db" not in st.session_state:
     st.session_state["user_db"] = {
         "01dgu24f1043": {"nama": "Ahmad", "pwd": "12345"},
@@ -46,12 +46,10 @@ def login_page():
 if not st.session_state["logged_in"]:
     login_page()
 else:
-    # Sidebar Logout & Settings
     if st.sidebar.button("🚪 Log Keluar"):
         st.session_state["logged_in"] = False
         st.rerun()
 
-    # --- HEADER ---
     st.title("POLITEKNIK UNGKU OMAR")
     st.subheader(f"Unit Geomatik - Selamat Datang, {st.session_state['user_name'].upper()}")
     st.markdown("---")
@@ -62,7 +60,9 @@ else:
 
     st.sidebar.header("🛠️ Tetapan Paparan")
     size_stn = st.sidebar.slider("Saiz No Stesen", 8, 20, 10)
-    size_brg = st.sidebar.slider("Saiz Teks (Bearing/Jarak)", 6, 15, 8)
+    size_brg = st.sidebar.slider("Saiz Teks (Bearing/Jarak)", 6, 15, 9)
+    # Slider untuk jarak teks dari garisan (Gap Control)
+    text_gap = st.sidebar.slider("Jarak Teks (Gap)", 30, 60, 46) 
     epsg_input = st.sidebar.text_input("Kod EPSG (Semenanjung: 4390)", "4390")
 
     if uploaded_file:
@@ -70,38 +70,24 @@ else:
             df = pd.read_csv(uploaded_file)
             df.columns = df.columns.str.strip().str.upper()
 
-            # 1. Transformasi Koordinat (E, N -> Lat, Lon)
+            # 1. Transformasi Koordinat
             transformer = Transformer.from_crs(f"EPSG:{epsg_input}", "EPSG:4326", always_xy=True)
             df['lon'], df['lat'] = transformer.transform(df['E'].values, df['N'].values)
             
-            # 2. Bina Peta Folium (Dengan "Super Zoom")
+            # 2. Bina Peta Folium (Super Zoom)
             center_lat, center_lon = df['lat'].mean(), df['lon'].mean()
-            
-            m = folium.Map(
-                location=[center_lat, center_lon], 
-                zoom_start=19, 
-                max_zoom=22, 
-                tiles=None
-            )
+            m = folium.Map(location=[center_lat, center_lon], zoom_start=19, max_zoom=22, tiles=None)
             
             folium.TileLayer(
                 tiles='https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',
-                attr='Google', 
-                name='Google Satellite', 
-                overlay=False, 
-                control=True,
-                max_zoom=22,
-                max_native_zoom=20
+                attr='Google', name='Google Satellite', overlay=False, control=True,
+                max_zoom=22, max_native_zoom=20
             ).add_to(m)
 
             points = []
-            
             for i in range(len(df)):
-                p1 = df.iloc[i]
-                p2 = df.iloc[(i + 1) % len(df)]
-                
-                loc1 = [p1['lat'], p1['lon']]
-                loc2 = [p2['lat'], p2['lon']]
+                p1, p2 = df.iloc[i], df.iloc[(i + 1) % len(df)]
+                loc1, loc2 = [p1['lat'], p1['lon']], [p2['lat'], p2['lon']]
                 points.append(loc1)
 
                 # Kira Bearing & Jarak
@@ -109,14 +95,16 @@ else:
                 dist = np.sqrt(dE**2 + dN**2)
                 brg_deg = np.degrees(np.arctan2(dE, dN)) % 360
                 
-                # Kira sudut putaran CSS
+                # Sudut putaran CSS
                 text_angle = brg_deg - 90
                 if 90 < brg_deg < 270: text_angle -= 180 
 
                 mid_lat, mid_lon = (p1['lat'] + p2['lat'])/2, (p1['lon'] + p2['lon'])/2
 
-                # 3. Label Bearing (Atas Garisan) & Jarak (Bawah Garisan)
-                # Menggunakan Flexbox dengan gap untuk 'mengangkang' garisan lot
+                # 3. Label Bearing (ATAS) & Jarak (BAWAH) dengan "No-Touch Gap"
+                # margin-top mestilah separuh daripada text_gap untuk center
+                half_gap = text_gap / 2
+                
                 label_html = f'''
                     <div style="transform: rotate({text_angle}deg); 
                                 display: flex;
@@ -125,40 +113,29 @@ else:
                                 color: #00FFFF; 
                                 font-weight: bold; 
                                 font-size: {size_brg}pt;
-                                text-shadow: 1px 1px 2px black; 
+                                text-shadow: 1px 1px 3px black; 
                                 text-align: center;
-                                width: 140px; 
-                                margin-left: -70px;
+                                width: 160px; 
+                                margin-left: -80px;
                                 pointer-events: none;
-                                height: 34px; 
-                                margin-top: -17px;
+                                height: {text_gap}px; 
+                                margin-top: -{half_gap}px;
                                 ">
                         <div style="white-space: nowrap;">{decimal_to_dms(brg_deg)}</div>
                         <div style="white-space: nowrap;">{dist:.3f}m</div>
                     </div>'''
                 
-                folium.Marker(
-                    [mid_lat, mid_lon], 
-                    icon=folium.DivIcon(html=label_html)
-                ).add_to(m)
+                folium.Marker([mid_lat, mid_lon], icon=folium.DivIcon(html=label_html)).add_to(m)
                 
                 # Label No Stesen
                 stn_html = f'''<div style="color:white; font-weight:bold; font-size:{size_stn}pt; 
                                 text-shadow: 1px 1px 2px black; pointer-events: none;">{int(p1["STN"])}</div>'''
                 folium.Marker(loc1, icon=folium.DivIcon(html=stn_html)).add_to(m)
 
-            # 4. Lukis Poligon Lot
-            folium.Polygon(
-                locations=points, 
-                color='yellow', 
-                weight=2, 
-                fill=True, 
-                fill_color='yellow', 
-                fill_opacity=0.15
-            ).add_to(m)
+            # 4. Lukis Poligon
+            folium.Polygon(locations=points, color='yellow', weight=2, fill=True, fill_color='yellow', fill_opacity=0.15).add_to(m)
 
-            # 5. Paparkan Peta Gabungan
-            st.subheader("🗺️ Peta Lot Gabungan (Bearing Atas, Jarak Bawah)")
+            st.subheader("🗺️ Peta Lot Gabungan (Clean Label Design)")
             st_folium(m, width="100%", height=700)
 
             # Info Luas
@@ -166,6 +143,6 @@ else:
             st.success(f"📐 **Luas Lot:** {area:.3f} m² | {(area/4046.856):.4f} Ekar")
 
         except Exception as e:
-            st.error(f"Ralat: {e}. Sila semak format CSV anda.")
+            st.error(f"Ralat: {e}. Semak kolum STN, E, N dalam fail CSV anda.")
     else:
         st.info("Sila muat naik fail CSV untuk melihat paparan lot.")
