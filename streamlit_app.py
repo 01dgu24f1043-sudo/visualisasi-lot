@@ -1,5 +1,5 @@
 import streamlit as st
-import pandas as pd
+import pandas pd
 import numpy as np
 import folium
 from streamlit_folium import st_folium
@@ -13,7 +13,7 @@ st.set_page_config(page_title="Sistem Lot Geomatik PUO", layout="wide")
 if "user_db" not in st.session_state:
     st.session_state["user_db"] = {
         "1": {"nama": "Admin", "pwd": "123"},
-        "01dgu24f1043": {"nama": "Alif", "pwd": "123"},
+        "01dgu24f1043": {"nama": "Ahmad", "pwd": "123"},
         "01dgu24f1013": {"nama": "Nafiz", "pwd": "456"}
     }
 
@@ -74,6 +74,8 @@ st.subheader(f"Unit Geomatik - Selamat Datang, {st.session_state['user_name'].up
 uploaded_file = st.sidebar.file_uploader("Upload CSV (STN, E, N)", type=["csv"])
 
 st.sidebar.header("👁️ Kawalan Paparan")
+# BARU: ON/OFF SATELIT
+show_satellite = st.sidebar.toggle("Paparkan Imej Satelit", value=True)
 show_stn = st.sidebar.checkbox("Paparkan No Stesen", value=True)
 show_brg = st.sidebar.checkbox("Paparkan Bearing/Jarak", value=True)
 show_poly = st.sidebar.checkbox("Paparkan Poligon & Luas", value=True)
@@ -92,12 +94,18 @@ if uploaded_file:
         df['lon'], df['lat'] = transformer.transform(df['E'].values, df['N'].values)
         
         center_lat, center_lon = df['lat'].mean(), df['lon'].mean()
+        
+        # Inisialisasi Peta
         m = folium.Map(location=[center_lat, center_lon], zoom_start=19, max_zoom=22, tiles=None)
         
-        folium.TileLayer(
-            tiles='https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', 
-            attr='Google', name='Google Satellite', max_zoom=22, max_native_zoom=20
-        ).add_to(m)
+        # Logik ON/OFF Satelit
+        if show_satellite:
+            folium.TileLayer(
+                tiles='https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', 
+                attr='Google', name='Google Satellite', max_zoom=22, max_native_zoom=20
+            ).add_to(m)
+        else:
+            folium.TileLayer('OpenStreetMap', name='Peta Dasar').add_to(m)
         
         Fullscreen(position="topright").add_to(m)
 
@@ -108,32 +116,24 @@ if uploaded_file:
             loc1 = [p1['lat'], p1['lon']]
             points.append(loc1)
 
-            # Kira Bearing/Jarak
             dE, dN = p2['E'] - p1['E'], p2['N'] - p1['N']
             dist = np.sqrt(dE**2 + dN**2)
             total_dist += dist
             brg = np.degrees(np.arctan2(dE, dN)) % 360
             
-            # 1. Marker Stesen (Koordinat N, E)
-            # Diletakkan sebelum label supaya label tidak menutup kawasan klik
+            # Marker Stesen (Koordinat N, E)
             stn_info = f"<b>STESEN {int(p1['STN'])}</b><br>N: {p1['N']:.3f}<br>E: {p1['E']:.3f}"
             folium.CircleMarker(
-                location=loc1,
-                radius=6,
-                color='red',
-                fill=True,
-                fill_color='white',
-                fill_opacity=0.7,
-                popup=folium.Popup(stn_info, max_width=200),
-                tooltip="Klik untuk Koordinat"
+                location=loc1, radius=6, color='red', fill=True, fill_color='white',
+                popup=folium.Popup(stn_info, max_width=200), tooltip="Klik untuk Koordinat"
             ).add_to(m)
 
-            # 2. Label No Stesen
+            # Label No Stesen
             if show_stn:
                 stn_txt = f'''<div style="color:white; font-weight:bold; font-size:{size_stn}pt; text-shadow: 1px 1px 2px black; pointer-events:none;">{int(p1["STN"])}</div>'''
                 folium.Marker(loc1, icon=folium.DivIcon(html=stn_txt)).add_to(m)
 
-            # 3. Label Bearing/Jarak
+            # Label Bearing/Jarak
             if show_brg:
                 t_angle = brg - 90
                 if 90 < brg < 270: t_angle -= 180
@@ -144,18 +144,11 @@ if uploaded_file:
                 </div>'''
                 folium.Marker([ (p1['lat']+p2['lat'])/2, (p1['lon']+p2['lon'])/2 ], icon=folium.DivIcon(html=l_html)).add_to(m)
 
-        # 4. Poligon & Luas
+        # Poligon & Luas
         area = 0.5 * np.abs(np.dot(df['E'], np.roll(df['N'], 1)) - np.dot(df['N'], np.roll(df['E'], 1)))
         if show_poly:
             poly_info = f"<b>INFO LOT</b><hr>Luas: {area:.3f} m²<br>Perimeter: {total_dist:.3f} m"
-            folium.Polygon(
-                locations=points, 
-                color='yellow', 
-                weight=3, 
-                fill=True, 
-                fill_opacity=0.15, 
-                popup=folium.Popup(poly_info, max_width=200)
-            ).add_to(m)
+            folium.Polygon(locations=points, color='yellow', weight=3, fill=True, fill_opacity=0.15, popup=folium.Popup(poly_info, max_width=200)).add_to(m)
 
         # Sidebar Stats & Export
         st.sidebar.markdown("---")
@@ -167,7 +160,7 @@ if uploaded_file:
 
     except Exception as e: st.error(f"Ralat: {e}")
 
-# --- LOGOUT DI BAWAH ---
+# --- LOGOUT DI BAWAH SEKALI ---
 st.sidebar.markdown("<br>" * 10, unsafe_allow_html=True)
 if st.sidebar.button("🚪 Log Keluar", use_container_width=True):
     st.session_state["logged_in"] = False
