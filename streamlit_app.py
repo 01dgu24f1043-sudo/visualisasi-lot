@@ -63,9 +63,7 @@ if not st.session_state["logged_in"]:
             st.rerun()
     st.stop()
 
-# --- APLIKASI UTAMA (LOGGED IN) ---
-
-# Sidebar Header
+# --- APLIKASI UTAMA ---
 st.sidebar.markdown(f"### 👋 Hi, {st.session_state['user_name']}")
 st.sidebar.markdown("---")
 
@@ -75,7 +73,7 @@ st.subheader(f"Unit Geomatik - Selamat Datang, {st.session_state['user_name'].up
 # --- SIDEBAR SETTINGS ---
 uploaded_file = st.sidebar.file_uploader("Upload CSV (STN, E, N)", type=["csv"])
 
-st.sidebar.header("👁️ Kawalan Paparan (On/Off)")
+st.sidebar.header("👁️ Kawalan Paparan")
 show_stn = st.sidebar.checkbox("Paparkan No Stesen", value=True)
 show_brg = st.sidebar.checkbox("Paparkan Bearing/Jarak", value=True)
 show_poly = st.sidebar.checkbox("Paparkan Poligon & Luas", value=True)
@@ -116,7 +114,26 @@ if uploaded_file:
             total_dist += dist
             brg = np.degrees(np.arctan2(dE, dN)) % 360
             
-            # Label Bearing/Jarak (Logic On/Off)
+            # 1. Marker Stesen (Koordinat N, E)
+            # Diletakkan sebelum label supaya label tidak menutup kawasan klik
+            stn_info = f"<b>STESEN {int(p1['STN'])}</b><br>N: {p1['N']:.3f}<br>E: {p1['E']:.3f}"
+            folium.CircleMarker(
+                location=loc1,
+                radius=6,
+                color='red',
+                fill=True,
+                fill_color='white',
+                fill_opacity=0.7,
+                popup=folium.Popup(stn_info, max_width=200),
+                tooltip="Klik untuk Koordinat"
+            ).add_to(m)
+
+            # 2. Label No Stesen
+            if show_stn:
+                stn_txt = f'''<div style="color:white; font-weight:bold; font-size:{size_stn}pt; text-shadow: 1px 1px 2px black; pointer-events:none;">{int(p1["STN"])}</div>'''
+                folium.Marker(loc1, icon=folium.DivIcon(html=stn_txt)).add_to(m)
+
+            # 3. Label Bearing/Jarak
             if show_brg:
                 t_angle = brg - 90
                 if 90 < brg < 270: t_angle -= 180
@@ -127,34 +144,31 @@ if uploaded_file:
                 </div>'''
                 folium.Marker([ (p1['lat']+p2['lat'])/2, (p1['lon']+p2['lon'])/2 ], icon=folium.DivIcon(html=l_html)).add_to(m)
 
-            # Titik Stesen & Koordinat Popup
-            stn_popup = f"<b>STN {int(p1['STN'])}</b><br>E: {p1['E']:.3f}<br>N: {p1['N']:.3f}"
-            folium.CircleMarker(loc1, radius=4, color="white", fill=True, fill_color="red", popup=stn_popup).add_to(m)
-            
-            # Label No Stesen (Logic On/Off)
-            if show_stn:
-                stn_txt = f'''<div style="color:white; font-weight:bold; font-size:{size_stn}pt; text-shadow: 1px 1px 2px black;">{int(p1["STN"])}</div>'''
-                folium.Marker(loc1, icon=folium.DivIcon(html=stn_txt)).add_to(m)
-
-        # Poligon & Luas (Logic On/Off)
+        # 4. Poligon & Luas
         area = 0.5 * np.abs(np.dot(df['E'], np.roll(df['N'], 1)) - np.dot(df['N'], np.roll(df['E'], 1)))
         if show_poly:
-            poly_info = f"<b>Info Lot</b><hr>Luas: {area:.3f} m²<br>Perimeter: {total_dist:.3f} m"
-            folium.Polygon(locations=points, color='yellow', weight=3, fill=True, fill_opacity=0.15, popup=poly_info).add_to(m)
+            poly_info = f"<b>INFO LOT</b><hr>Luas: {area:.3f} m²<br>Perimeter: {total_dist:.3f} m"
+            folium.Polygon(
+                locations=points, 
+                color='yellow', 
+                weight=3, 
+                fill=True, 
+                fill_opacity=0.15, 
+                popup=folium.Popup(poly_info, max_width=200)
+            ).add_to(m)
 
-        # Download Buttons & Info
+        # Sidebar Stats & Export
         st.sidebar.markdown("---")
         st.sidebar.info(f"📐 Luas: {area:.3f} m²\n\n📏 Perimeter: {total_dist:.3f} m")
-        geojson = {"type": "FeatureCollection", "features": [{"type": "Feature", "geometry": {"type": "Polygon", "coordinates": [[ [p[1], p[0]] for p in points ] + [[points[0][1], points[0][0]]]]}, "properties": {"Luas": area}}]}
+        geojson = {"type": "FeatureCollection", "features": [{"type": "Feature", "geometry": {"type": "Polygon", "coordinates": [[ [p[1], p[0]] for p in points ] + [[points[0][1], points[0][0]]]]}, "properties": {"Luas": area, "Perimeter": total_dist}}]}
         st.sidebar.download_button("📥 Export QGIS (GeoJSON)", data=json.dumps(geojson), file_name="lot_puo.geojson", use_container_width=True)
         
         st_folium(m, width="100%", height=700)
 
-    except Exception as e: st.error(f"Ralat Fail: {e}")
+    except Exception as e: st.error(f"Ralat: {e}")
 
-# --- TOLAK LOGOUT KE BAWAH SEKALI ---
-st.sidebar.markdown("<br>" * 10, unsafe_allow_html=True) # Mencipta ruang kosong
+# --- LOGOUT DI BAWAH ---
+st.sidebar.markdown("<br>" * 10, unsafe_allow_html=True)
 if st.sidebar.button("🚪 Log Keluar", use_container_width=True):
     st.session_state["logged_in"] = False
     st.rerun()
-
