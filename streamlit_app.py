@@ -13,7 +13,7 @@ st.set_page_config(page_title="Sistem Lot Geomatik PUO", layout="wide")
 if "user_db" not in st.session_state:
     st.session_state["user_db"] = {
         "1": {"nama": "Admin", "pwd": "123"},
-        "01dgu24f1043": {"nama": "Ahmad", "pwd": "123"},
+        "01dgu24f1043": {"nama": "Alif", "pwd": "123"},
         "01dgu24f1013": {"nama": "Nafiz", "pwd": "456"}
     }
 
@@ -165,3 +165,4 @@ st.sidebar.markdown("<br>" * 10, unsafe_allow_html=True)
 if st.sidebar.button("🚪 Log Keluar", use_container_width=True):
     st.session_state["logged_in"] = False
     st.rerun()
+
