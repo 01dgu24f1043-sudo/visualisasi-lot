@@ -61,8 +61,8 @@ else:
     st.sidebar.header("🛠️ Tetapan Paparan")
     size_stn = st.sidebar.slider("Saiz No Stesen", 8, 20, 10)
     size_brg = st.sidebar.slider("Saiz Teks (Bearing/Jarak)", 6, 15, 9)
-    # Slider untuk jarak teks dari garisan (Gap Control)
-    text_gap = st.sidebar.slider("Jarak Teks (Gap)", 30, 60, 46) 
+    # Nilai 28-32 adalah "Sweet Spot" untuk nampak rapat tapi tak sentuh
+    text_gap = st.sidebar.slider("Keluasan Ruang Teks (Gap)", 20, 50, 30) 
     epsg_input = st.sidebar.text_input("Kod EPSG (Semenanjung: 4390)", "4390")
 
     if uploaded_file:
@@ -74,7 +74,7 @@ else:
             transformer = Transformer.from_crs(f"EPSG:{epsg_input}", "EPSG:4326", always_xy=True)
             df['lon'], df['lat'] = transformer.transform(df['E'].values, df['N'].values)
             
-            # 2. Bina Peta Folium (Super Zoom)
+            # 2. Bina Peta Folium
             center_lat, center_lon = df['lat'].mean(), df['lon'].mean()
             m = folium.Map(location=[center_lat, center_lon], zoom_start=19, max_zoom=22, tiles=None)
             
@@ -101,8 +101,7 @@ else:
 
                 mid_lat, mid_lon = (p1['lat'] + p2['lat'])/2, (p1['lon'] + p2['lon'])/2
 
-                # 3. Label Bearing (ATAS) & Jarak (BAWAH) dengan "No-Touch Gap"
-                # margin-top mestilah separuh daripada text_gap untuk center
+                # 3. Label Bearing & Jarak (RAPAT & TIDAK MENYENTUH)
                 half_gap = text_gap / 2
                 
                 label_html = f'''
@@ -113,7 +112,7 @@ else:
                                 color: #00FFFF; 
                                 font-weight: bold; 
                                 font-size: {size_brg}pt;
-                                text-shadow: 1px 1px 3px black; 
+                                text-shadow: 1px 1px 2px black; 
                                 text-align: center;
                                 width: 160px; 
                                 margin-left: -80px;
@@ -121,8 +120,8 @@ else:
                                 height: {text_gap}px; 
                                 margin-top: -{half_gap}px;
                                 ">
-                        <div style="white-space: nowrap;">{decimal_to_dms(brg_deg)}</div>
-                        <div style="white-space: nowrap;">{dist:.3f}m</div>
+                        <div style="white-space: nowrap; line-height: 1;">{decimal_to_dms(brg_deg)}</div>
+                        <div style="white-space: nowrap; line-height: 1;">{dist:.3f}m</div>
                     </div>'''
                 
                 folium.Marker([mid_lat, mid_lon], icon=folium.DivIcon(html=label_html)).add_to(m)
@@ -133,9 +132,9 @@ else:
                 folium.Marker(loc1, icon=folium.DivIcon(html=stn_html)).add_to(m)
 
             # 4. Lukis Poligon
-            folium.Polygon(locations=points, color='yellow', weight=2, fill=True, fill_color='yellow', fill_opacity=0.15).add_to(m)
+            folium.Polygon(locations=points, color='yellow', weight=2, fill=True, fill_color='yellow', fill_opacity=0.1).add_to(m)
 
-            st.subheader("🗺️ Peta Lot Gabungan (Clean Label Design)")
+            st.subheader("🗺️ Peta Lot Gabungan (Precision Gap Layout)")
             st_folium(m, width="100%", height=700)
 
             # Info Luas
@@ -143,6 +142,6 @@ else:
             st.success(f"📐 **Luas Lot:** {area:.3f} m² | {(area/4046.856):.4f} Ekar")
 
         except Exception as e:
-            st.error(f"Ralat: {e}. Semak kolum STN, E, N dalam fail CSV anda.")
+            st.error(f"Ralat: {e}. Semak data anda.")
     else:
-        st.info("Sila muat naik fail CSV untuk melihat paparan lot.")
+        st.info("Sila muat naik fail CSV.")
