@@ -3,7 +3,6 @@ import pandas as pd
 import numpy as np
 import folium
 from streamlit_folium import st_folium
-import os
 from pyproj import Transformer
 import io
 
@@ -64,7 +63,7 @@ else:
     st.sidebar.header("🛠️ Tetapan Paparan")
     size_stn = st.sidebar.slider("Saiz No Stesen", 8, 20, 10)
     size_brg = st.sidebar.slider("Saiz Teks (Bearing/Jarak)", 6, 15, 8)
-    epsg_input = st.sidebar.text_input("Kod EPSG (Contoh: 4390)", "4390")
+    epsg_input = st.sidebar.text_input("Kod EPSG (Contoh Semenanjung: 4390)", "4390")
 
     if uploaded_file:
         try:
@@ -75,13 +74,25 @@ else:
             transformer = Transformer.from_crs(f"EPSG:{epsg_input}", "EPSG:4326", always_xy=True)
             df['lon'], df['lat'] = transformer.transform(df['E'].values, df['N'].values)
             
-            # 2. Bina Peta Folium (Google Satellite)
+            # 2. Bina Peta Folium (Dengan "Super Zoom")
             center_lat, center_lon = df['lat'].mean(), df['lon'].mean()
-            m = folium.Map(location=[center_lat, center_lon], zoom_start=19, tiles=None)
             
+            m = folium.Map(
+                location=[center_lat, center_lon], 
+                zoom_start=19, 
+                max_zoom=22,  # Membenarkan zoom lebih dalam dari biasa
+                tiles=None
+            )
+            
+            # Layer Satelit Google dengan tetapan kualiti tinggi
             folium.TileLayer(
                 tiles='https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',
-                attr='Google', name='Google Satellite', overlay=False, control=True
+                attr='Google', 
+                name='Google Satellite', 
+                overlay=False, 
+                control=True,
+                max_zoom=22,         # Benarkan layer zoom sehingga 22
+                max_native_zoom=20    # Guna resolusi asal Google sehingga 20 (elak peta kosong)
             ).add_to(m)
 
             # Koordinat untuk poligon
@@ -89,20 +100,20 @@ else:
             
             for i in range(len(df)):
                 p1 = df.iloc[i]
-                p2 = df.iloc[(i + 1) % len(df)] # Menyambung balik ke stesen asal
+                p2 = df.iloc[(i + 1) % len(df)]
                 
                 loc1 = [p1['lat'], p1['lon']]
                 loc2 = [p2['lat'], p2['lon']]
                 points.append(loc1)
 
-                # Kira Bearing & Jarak (Dari Koordinat E, N)
+                # Kira Bearing & Jarak
                 dE, dN = p2['E'] - p1['E'], p2['N'] - p1['N']
                 dist = np.sqrt(dE**2 + dN**2)
                 brg_deg = np.degrees(np.arctan2(dE, dN)) % 360
                 
-                # Kira sudut putaran CSS untuk label (Sengek ikut garisan)
+                # Kira sudut putaran CSS untuk label
                 text_angle = brg_deg - 90
-                if 90 < brg_deg < 270: text_angle -= 180 # Supaya teks tidak terbalik
+                if 90 < brg_deg < 270: text_angle -= 180 
 
                 mid_lat, mid_lon = (p1['lat'] + p2['lat'])/2, (p1['lon'] + p2['lon'])/2
 
@@ -115,7 +126,8 @@ else:
                                 text-shadow: 1px 1px 2px black; 
                                 text-align: center;
                                 width: 120px;
-                                margin-left: -60px;">
+                                margin-left: -60px;
+                                pointer-events: none;">
                         {decimal_to_dms(brg_deg)}<br>{dist:.3f}m
                     </div>'''
                 
@@ -126,32 +138,28 @@ else:
                 
                 # Label No Stesen
                 stn_html = f'''<div style="color:white; font-weight:bold; font-size:{size_stn}pt; 
-                                text-shadow: 1px 1px 2px black;">{int(p1["STN"])}</div>'''
+                                text-shadow: 1px 1px 2px black; pointer-events: none;">{int(p1["STN"])}</div>'''
                 folium.Marker(loc1, icon=folium.DivIcon(html=stn_html)).add_to(m)
 
-            # 4. Lukis Poligon Kuning
+            # 4. Lukis Poligon Lot
             folium.Polygon(
                 locations=points, 
                 color='yellow', 
                 weight=3, 
                 fill=True, 
                 fill_color='yellow', 
-                fill_opacity=0.1
+                fill_opacity=0.15
             ).add_to(m)
 
-            # 5. Paparkan Peta Terintegrasi
-            st.subheader("🗺️ Peta Lot Gabungan (Satelit + Teks Senget)")
-            st_folium(m, width="100%", height=650)
+            # 5. Paparkan Peta Gabungan
+            st.subheader("🗺️ Peta Lot Gabungan (Satelit + Teks Berotasi)")
+            st_folium(m, width="100%", height=700)
 
-            # Hitung Luas
+            # Info Luas
             area = 0.5 * np.abs(np.dot(df['E'], np.roll(df['N'], 1)) - np.dot(df['N'], np.roll(df['E'], 1)))
-            st.info(f"📐 **Luas Lot:** {area:.3f} m² | {(area/4046.856):.4f} Ekar")
-
-            # Papar Jadual
-            with st.expander("Lihat Jadual Data"):
-                st.dataframe(df[['STN','E','N','lat','lon']], use_container_width=True)
+            st.success(f"📐 **Luas Lot:** {area:.3f} m² | {(area/4046.856):.4f} Ekar")
 
         except Exception as e:
-            st.error(f"Sila semak format fail CSV. Pastikan ada kolum STN, E, N. Ralat: {e}")
+            st.error(f"Ralat: {e}. Sila pastikan format CSV (STN, E, N) betul.")
     else:
-        st.info("Sila muat naik fail CSV koordinat untuk melihat paparan lot di atas peta satelit.")
+        st.info("Sila muat naik fail CSV untuk melihat paparan lot.")
