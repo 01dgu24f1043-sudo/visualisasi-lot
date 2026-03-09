@@ -5,13 +5,13 @@ import numpy as np
 import os
 from pyproj import Transformer
 
+# --- PERSAPAN ASAS ---
 st.set_page_config(page_title="Sistem Lot Geomatik PUO", layout="wide")
 
-# --- LOGIN SESSION ---
 if "logged_in" not in st.session_state:
     st.session_state["logged_in"] = False
 
-# (Fungsi login diringkaskan untuk fokus kepada pembaikan peta)
+# --- FUNGSI LOGIN ---
 if not st.session_state["logged_in"]:
     st.title("🔐 Log Masuk Sistem PUO")
     u_id = st.text_input("ID Pengguna")
@@ -20,7 +20,7 @@ if not st.session_state["logged_in"]:
         st.session_state["user_id"] = u_id
         st.rerun()
 else:
-    # --- SIDEBAR SETTINGS ---
+    # --- SIDEBAR (KEKKALKAN SEMUA SETTING) ---
     st.sidebar.header("Tetapan Peta")
     uploaded_file = st.sidebar.file_uploader("Upload CSV", type=["csv"])
     show_satellite = st.sidebar.checkbox("Layer Satellite", True)
@@ -48,7 +48,7 @@ else:
 
         fig = go.Figure()
 
-        # 1. GARISAN LOT
+        # 1. LUKIS GARISAN LOT
         fig.add_trace(go.Scattermapbox(
             lat=df_poly['lat'], lon=df_poly['lon'],
             mode='lines+markers',
@@ -57,61 +57,67 @@ else:
             fill="toself", fillcolor="rgba(255,255,0,0.1)"
         ))
 
-        # 2. BEARING & JARAK (MENGHALA KE POINT TUJUAN)
+        # 2. BEARING & JARAK (ROTASI SELARI GARISAN)
         if show_brg_dist:
-            offset_dist = 0.000012 # Jarak atas/bawah
+            offset_val = 0.000012 
             
             for i in range(len(df_poly)-1):
                 p1 = df_poly.iloc[i]
                 p2 = df_poly.iloc[i+1]
                 
-                # Kira Bearing & Jarak
+                # Kira Bearing & Jarak Satah
                 dE, dN = p2['E'] - p1['E'], p2['N'] - p1['N']
                 dist = np.sqrt(dE**2 + dN**2)
                 brg = np.degrees(np.arctan2(dE, dN)) % 360
                 
-                # --- TEKNIK MENGHALA KE POINT TUJUAN ---
-                # Kita letak label pada 70% perjalanan garisan (bukan tengah 50%)
-                ratio = 0.7 
-                target_lat = p1['lat'] + (p2['lat'] - p1['lat']) * ratio
-                target_lon = p1['lon'] + (p2['lon'] - p1['lon']) * ratio
+                # Kira Sudut Rotasi (Visual Lat/Lon)
+                d_lat = p2['lat'] - p1['lat']
+                d_lon = p2['lon'] - p1['lon']
+                angle = np.degrees(np.arctan2(d_lat, d_lon))
                 
-                # Kira Vektor Normal untuk anjakan Atas/Bawah
-                d_lat, d_lon = p2['lat'] - p1['lat'], p2['lon'] - p1['lon']
+                # Normalkan sudut supaya teks tidak terbalik (sentiasa dari kiri ke kanan)
+                display_angle = angle
+                if display_angle > 90: display_angle -= 180
+                elif display_angle < -90: display_angle += 180
+                
+                # Vektor Normal untuk anjakan Atas/Bawah
                 mag = np.sqrt(d_lat**2 + d_lon**2)
                 nx, ny = -d_lat/mag, d_lon/mag
-                
-                # BEARING (Atas & Menghala ke depan)
+                mid_lat, mid_lon = (p1['lat'] + p2['lat'])/2, (p1['lon'] + p2['lon'])/2
+
+                # BEARING (Tengah, Atas, Berpusing)
                 fig.add_trace(go.Scattermapbox(
-                    lat=[target_lat + ny * offset_dist],
-                    lon=[target_lon + nx * offset_dist],
+                    lat=[mid_lat + ny * offset_val],
+                    lon=[mid_lon + nx * offset_val],
                     mode="text",
-                    text=[f"<b>{decimal_to_dms(brg)}</b>"],
-                    textfont=dict(size=size_brg, color="cyan")
+                    text=[decimal_to_dms(brg)],
+                    textfont=dict(size=size_brg, color="cyan"),
+                    textangle=-display_angle # Memusingkan teks mengikut garisan
                 ))
                 
-                # JARAK (Bawah & Menghala ke depan)
+                # JARAK (Tengah, Bawah, Berpusing)
                 fig.add_trace(go.Scattermapbox(
-                    lat=[target_lat - ny * offset_dist],
-                    lon=[target_lon - nx * offset_dist],
+                    lat=[mid_lat - ny * offset_val],
+                    lon=[mid_lon - nx * offset_val],
                     mode="text",
                     text=[f"{dist:.3f}m"],
-                    textfont=dict(size=size_brg, color="white")
+                    textfont=dict(size=size_brg, color="white"),
+                    textangle=-display_angle # Memusingkan teks mengikut garisan
                 ))
 
         # 3. LABEL STESEN
         if show_stn:
             fig.add_trace(go.Scattermapbox(
-                lat=df['lat'], lon=df['lon'], mode="markers+text",
+                lat=df['lat'], lon=df['lon'], mode="text",
                 text=df['STN'].astype(str), textposition="top right",
                 textfont=dict(size=size_stn, color="yellow")
             ))
 
-        # LAYOUT
+        # --- LAYOUT PETA ---
         layers = [{"below": 'traces', "sourcetype": "raster", "source": ["https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}"]} if show_satellite else []]
         fig.update_layout(
             mapbox=dict(style="white-bg", layers=layers, center=dict(lat=df['lat'].mean(), lon=df['lon'].mean()), zoom=zoom_val),
-            uirevision="lock",
+            uirevision="constant", # Zoom takkan reset
             margin={"r":0,"t":0,"l":0,"b":0}, height=700, showlegend=False
         )
 
