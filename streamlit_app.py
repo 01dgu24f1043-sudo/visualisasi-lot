@@ -5,33 +5,74 @@ import numpy as np
 import os
 from pyproj import Transformer
 
-# --- PERSAPAN ASAS ---
 st.set_page_config(page_title="Sistem Lot Geomatik PUO", layout="wide")
+
+# --- USER LOGIN ---
+USER_CREDENTIALS = {
+    "01dgu24f1043": "12345",
+    "01dgu24f1013": "Nafiz0921",
+    "pensyarah": "jka123"
+}
 
 if "logged_in" not in st.session_state:
     st.session_state["logged_in"] = False
 
-# --- FUNGSI LOGIN ---
+def login_page():
+    col_l, col_m, col_r = st.columns([1, 1, 1])
+    with col_m:
+        st.markdown("<h2 style='text-align:center;'>🔐 Sistem Survey Lot PUO</h2>", unsafe_allow_html=True)
+        tab1, tab2 = st.tabs(["Log Masuk", "Lupa Kata Laluan"])
+        with tab1:
+            user_id = st.text_input("ID Pengguna")
+            user_pwd = st.text_input("Kata Laluan", type="password")
+            if st.button("Masuk", use_container_width=True):
+                if user_id in USER_CREDENTIALS and USER_CREDENTIALS[user_id] == user_pwd:
+                    st.session_state["logged_in"] = True
+                    st.session_state["user_id"] = user_id
+                    st.rerun()
+                else:
+                    st.error("ID atau Kata Laluan salah")
+        with tab2:
+            forgot_id = st.text_input("Masukkan ID Pengguna")
+            if st.button("Semak Password"):
+                if forgot_id in USER_CREDENTIALS:
+                    st.info(f"Kata laluan: {USER_CREDENTIALS[forgot_id]}")
+                else:
+                    st.error("ID tidak ditemui")
+
 if not st.session_state["logged_in"]:
-    st.title("🔐 Log Masuk Sistem PUO")
-    u_id = st.text_input("ID Pengguna")
-    if st.button("Masuk"):
-        st.session_state["logged_in"] = True
-        st.session_state["user_id"] = u_id
-        st.rerun()
+    login_page()
 else:
-    # --- SIDEBAR (KEKKALKAN SEMUA SETTING) ---
-    st.sidebar.header("Tetapan Peta")
+    # --- HEADER ---
+    logo_path = "politeknik-ungku-umar-seeklogo-removebg-preview.png"
+    col1, col2, col3 = st.columns([1, 4, 1.5])
+    with col1:
+        if os.path.exists(logo_path): st.image(logo_path, width=120)
+    with col2:
+        st.title("POLITEKNIK UNGKU OMAR")
+        st.subheader("Jabatan Kejuruteraan Awam - Unit Geomatik")
+    with col3:
+        st.markdown(f"<div style='background-color:#f0f2f6;padding:10px;border-radius:10px;border-left:5px solid red;'>Selamat Datang<h3>HI {st.session_state.get('user_id','USER')}</h3></div>", unsafe_allow_html=True)
+
+    st.markdown("---")
+
+    # --- SIDEBAR (SEMUA SETTING ASAL ANDA ADA DI SINI) ---
+    st.sidebar.header("Fail Data")
     uploaded_file = st.sidebar.file_uploader("Upload CSV", type=["csv"])
+
+    st.sidebar.header("Tetapan Peta")
     show_satellite = st.sidebar.checkbox("Layer Satellite", True)
     zoom_val = st.sidebar.slider("Zoom", 15, 22, 19)
-    
+
     st.sidebar.subheader("Saiz Tulisan")
     size_stn = st.sidebar.slider("No Stesen", 10, 30, 14)
     size_brg = st.sidebar.slider("Bearing & Jarak", 8, 25, 11)
-    
+    size_area = st.sidebar.slider("Luas", 15, 40, 20)
+
+    st.sidebar.subheader("Paparan Label")
     show_stn = st.sidebar.checkbox("Papar Stesen", True)
     show_brg_dist = st.sidebar.checkbox("Papar Bearing & Jarak", True)
+    show_area = st.sidebar.checkbox("Papar Luas", True)
 
     def decimal_to_dms(deg):
         d = int(deg); m = int((deg - d) * 60); s = int(round((deg - d - m/60) * 3600))
@@ -39,87 +80,90 @@ else:
         return f"{d}°{m:02d}'{s:02d}\""
 
     if uploaded_file:
-        df = pd.read_csv(uploaded_file)
-        df.columns = df.columns.str.strip().str.upper()
-        
-        transformer = Transformer.from_crs("EPSG:4390", "EPSG:4326", always_xy=True)
-        df['lon'], df['lat'] = transformer.transform(df['E'].values, df['N'].values)
-        df_poly = pd.concat([df, df.iloc[[0]]], ignore_index=True)
+        try:
+            df = pd.read_csv(uploaded_file)
+            df.columns = df.columns.str.strip().str.upper()
 
-        fig = go.Figure()
+            epsg_input = st.sidebar.text_input("Kod EPSG", "4390")
+            transformer = Transformer.from_crs(f"EPSG:{epsg_input}", "EPSG:4326", always_xy=True)
+            df['lon'], df['lat'] = transformer.transform(df['E'].values, df['N'].values)
+            df_poly = pd.concat([df, df.iloc[[0]]], ignore_index=True)
 
-        # 1. LUKIS GARISAN LOT
-        fig.add_trace(go.Scattermapbox(
-            lat=df_poly['lat'], lon=df_poly['lon'],
-            mode='lines+markers',
-            line=dict(width=3, color="yellow"),
-            marker=dict(size=8, color="red"),
-            fill="toself", fillcolor="rgba(255,255,0,0.1)"
-        ))
+            fig = go.Figure()
 
-        # 2. BEARING & JARAK (ROTASI SELARI GARISAN)
-        if show_brg_dist:
-            offset_val = 0.000012 
-            
-            for i in range(len(df_poly)-1):
-                p1 = df_poly.iloc[i]
-                p2 = df_poly.iloc[i+1]
-                
-                # Kira Bearing & Jarak Satah
-                dE, dN = p2['E'] - p1['E'], p2['N'] - p1['N']
-                dist = np.sqrt(dE**2 + dN**2)
-                brg = np.degrees(np.arctan2(dE, dN)) % 360
-                
-                # Kira Sudut Rotasi (Visual Lat/Lon)
-                d_lat = p2['lat'] - p1['lat']
-                d_lon = p2['lon'] - p1['lon']
-                angle = np.degrees(np.arctan2(d_lat, d_lon))
-                
-                # Normalkan sudut supaya teks tidak terbalik (sentiasa dari kiri ke kanan)
-                display_angle = angle
-                if display_angle > 90: display_angle -= 180
-                elif display_angle < -90: display_angle += 180
-                
-                # Vektor Normal untuk anjakan Atas/Bawah
-                mag = np.sqrt(d_lat**2 + d_lon**2)
-                nx, ny = -d_lat/mag, d_lon/mag
-                mid_lat, mid_lon = (p1['lat'] + p2['lat'])/2, (p1['lon'] + p2['lon'])/2
-
-                # BEARING (Tengah, Atas, Berpusing)
-                fig.add_trace(go.Scattermapbox(
-                    lat=[mid_lat + ny * offset_val],
-                    lon=[mid_lon + nx * offset_val],
-                    mode="text",
-                    text=[decimal_to_dms(brg)],
-                    textfont=dict(size=size_brg, color="cyan"),
-                    textangle=-display_angle # Memusingkan teks mengikut garisan
-                ))
-                
-                # JARAK (Tengah, Bawah, Berpusing)
-                fig.add_trace(go.Scattermapbox(
-                    lat=[mid_lat - ny * offset_val],
-                    lon=[mid_lon - nx * offset_val],
-                    mode="text",
-                    text=[f"{dist:.3f}m"],
-                    textfont=dict(size=size_brg, color="white"),
-                    textangle=-display_angle # Memusingkan teks mengikut garisan
-                ))
-
-        # 3. LABEL STESEN
-        if show_stn:
+            # 1. POLYGON
             fig.add_trace(go.Scattermapbox(
-                lat=df['lat'], lon=df['lon'], mode="text",
-                text=df['STN'].astype(str), textposition="top right",
-                textfont=dict(size=size_stn, color="yellow")
+                lat=df_poly['lat'], lon=df_poly['lon'], mode='lines+markers',
+                fill="toself", fillcolor="rgba(255,255,0,0.1)",
+                line=dict(width=3, color="yellow"), marker=dict(size=8, color="red")
             ))
 
-        # --- LAYOUT PETA ---
-        layers = [{"below": 'traces', "sourcetype": "raster", "source": ["https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}"]} if show_satellite else []]
-        fig.update_layout(
-            mapbox=dict(style="white-bg", layers=layers, center=dict(lat=df['lat'].mean(), lon=df['lon'].mean()), zoom=zoom_val),
-            uirevision="constant", # Zoom takkan reset
-            margin={"r":0,"t":0,"l":0,"b":0}, height=700, showlegend=False
-        )
+            # 2. STATION LABELS
+            if show_stn:
+                fig.add_trace(go.Scattermapbox(
+                    lat=df['lat'], lon=df['lon'], mode="text",
+                    text=df['STN'].astype(str), textposition="top right",
+                    textfont=dict(size=size_stn, color="white")
+                ))
 
-        st.plotly_chart(fig, use_container_width=True)
-        st.dataframe(df[['STN','E','N']])
+            # 3. BEARING & JARAK (SISTEM ATAS-BAWAH)
+            if show_brg_dist:
+                offset_dist = 0.000015 # Jarak anjakan teks dari garisan
+                for i in range(len(df_poly)-1):
+                    p1, p2 = df_poly.iloc[i], df_poly.iloc[i+1]
+                    
+                    # Kira Bearing & Jarak Satah
+                    dE, dN = p2['E'] - p1['E'], p2['N'] - p1['N']
+                    dist = np.sqrt(dE**2 + dN**2)
+                    brg = np.degrees(np.arctan2(dE, dN)) % 360
+                    
+                    # Kira Vektor Normal untuk anjakan visual Atas-Bawah
+                    d_lat, d_lon = p2['lat'] - p1['lat'], p2['lon'] - p1['lon']
+                    mag = np.sqrt(d_lat**2 + d_lon**2)
+                    nx, ny = -d_lat / mag if mag != 0 else 0, d_lon / mag if mag != 0 else 0
+                    mid_lat, mid_lon = (p1['lat'] + p2['lat'])/2, (p1['lon'] + p2['lon'])/2
+
+                    # Bearing (Atas Garisan - Warna Cyan)
+                    fig.add_trace(go.Scattermapbox(
+                        lat=[mid_lat + ny * offset_dist], lon=[mid_lon + nx * offset_dist],
+                        mode="text", text=[decimal_to_dms(brg)],
+                        textfont=dict(size=size_brg, color="cyan"), hoverinfo='skip'
+                    ))
+                    # Jarak (Bawah Garisan - Warna Putih)
+                    fig.add_trace(go.Scattermapbox(
+                        lat=[mid_lat - ny * offset_dist], lon=[mid_lon - nx * offset_dist],
+                        mode="text", text=[f"{dist:.3f}m"],
+                        textfont=dict(size=size_brg, color="white"), hoverinfo='skip'
+                    ))
+
+            # 4. AREA
+            if show_area:
+                area = 0.5 * np.abs(np.dot(df['E'], np.roll(df['N'], 1)) - np.dot(df['N'], np.roll(df['E'], 1)))
+                fig.add_trace(go.Scattermapbox(
+                    lat=[df['lat'].mean()], lon=[df['lon'].mean()], mode="text",
+                    text=[f"LUAS<br>{area:.2f} m²"], textfont=dict(size=size_area, color="yellow")
+                ))
+
+            # --- LAYOUT ---
+            layers = []
+            if show_satellite:
+                layers = [{"below": 'traces', "sourcetype": "raster", "source": ["https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}"]}]
+
+            fig.update_layout(
+                mapbox=dict(style="white-bg", layers=layers, center=dict(lat=df['lat'].mean(), lon=df['lon'].mean()), zoom=zoom_val),
+                uirevision="constant", # PENTING: Zoom takkan reset bila tukar setting
+                margin={"r":0,"t":0,"l":0,"b":0}, height=750, showlegend=False
+            )
+
+            st.plotly_chart(fig, use_container_width=True)
+
+            # --- TABLE ---
+            st.subheader("Jadual Koordinat Lot")
+            st.dataframe(df[['STN','E','N']], use_container_width=True)
+
+            if st.sidebar.button("Log Keluar"):
+                st.session_state["logged_in"] = False
+                st.rerun()
+
+        except Exception as e:
+            st.error(f"Ralat: {e}")
