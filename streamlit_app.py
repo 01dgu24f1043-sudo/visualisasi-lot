@@ -1,5 +1,5 @@
 import streamlit as st
-import pandas pd
+import pandas as pd
 import numpy as np
 import folium
 from streamlit_folium import st_folium
@@ -74,7 +74,6 @@ st.subheader(f"Unit Geomatik - Selamat Datang, {st.session_state['user_name'].up
 uploaded_file = st.sidebar.file_uploader("Upload CSV (STN, E, N)", type=["csv"])
 
 st.sidebar.header("👁️ Kawalan Paparan")
-# BARU: ON/OFF SATELIT
 show_satellite = st.sidebar.toggle("Paparkan Imej Satelit", value=True)
 show_stn = st.sidebar.checkbox("Paparkan No Stesen", value=True)
 show_brg = st.sidebar.checkbox("Paparkan Bearing/Jarak", value=True)
@@ -83,7 +82,7 @@ show_poly = st.sidebar.checkbox("Paparkan Poligon & Luas", value=True)
 st.sidebar.header("🛠️ Tetapan Saiz Teks")
 size_stn = st.sidebar.slider("Saiz No Stesen", 8, 30, 12)
 size_brg = st.sidebar.slider("Saiz Bearing/Jarak", 6, 25, 10)
-text_gap = st.sidebar.slider("Keluasan Gap Teks", 20, 70, 35)
+text_gap = st.sidebar.slider("Keluasan Gap Teks", 20, 70, 40)
 epsg_input = st.sidebar.text_input("Kod EPSG", "4390")
 
 if uploaded_file:
@@ -98,7 +97,6 @@ if uploaded_file:
         # Inisialisasi Peta
         m = folium.Map(location=[center_lat, center_lon], zoom_start=19, max_zoom=22, tiles=None)
         
-        # Logik ON/OFF Satelit
         if show_satellite:
             folium.TileLayer(
                 tiles='https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', 
@@ -121,7 +119,7 @@ if uploaded_file:
             total_dist += dist
             brg = np.degrees(np.arctan2(dE, dN)) % 360
             
-            # Marker Stesen (Koordinat N, E)
+            # Marker Stesen (Klik untuk Koordinat)
             stn_info = f"<b>STESEN {int(p1['STN'])}</b><br>N: {p1['N']:.3f}<br>E: {p1['E']:.3f}"
             folium.CircleMarker(
                 location=loc1, radius=6, color='red', fill=True, fill_color='white',
@@ -138,7 +136,7 @@ if uploaded_file:
                 t_angle = brg - 90
                 if 90 < brg < 270: t_angle -= 180
                 h_gap = text_gap / 2
-                l_html = f'''<div style="transform: rotate({t_angle}deg); display: flex; flex-direction: column; justify-content: space-between; align-items: center; color: #00FFFF; font-weight: bold; font-size: {size_brg}pt; text-shadow: 1px 1px 2px black; width: 180px; margin-left: -90px; height: {text_gap}px; margin-top: -{h_gap}px; pointer-events: none;">
+                l_html = f'''<div style="transform: rotate({text_angle}deg); display: flex; flex-direction: column; justify-content: space-between; align-items: center; color: #00FFFF; font-weight: bold; font-size: {size_brg}pt; text-shadow: 1px 1px 2px black; width: 180px; margin-left: -90px; height: {text_gap}px; margin-top: -{h_gap}px; pointer-events: none;">
                     <div style="padding-bottom:2px;">{decimal_to_dms(brg)}</div>
                     <div style="padding-top:2px;">{dist:.3f}m</div>
                 </div>'''
