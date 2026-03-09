@@ -1,9 +1,6 @@
 streamlit
 pandas
-plotly
 numpy
-pyproj
-matplotlib
 folium
 streamlit-folium
-
+pyproj
