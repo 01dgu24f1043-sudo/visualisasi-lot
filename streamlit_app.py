@@ -13,7 +13,7 @@ st.set_page_config(page_title="Sistem Lot Geomatik PUO", layout="wide")
 if "user_db" not in st.session_state:
     st.session_state["user_db"] = {
         "1": {"nama": "Admin", "pwd": "123"},
-        "01dgu24f1043": {"nama": "Ahmad", "pwd": "123"},
+        "01dgu24f1043": {"nama": "Alif", "pwd": "123"},
         "01dgu24f1013": {"nama": "Nafiz", "pwd": "456"}
     }
 
@@ -146,3 +146,4 @@ if uploaded_file:
         st_folium(m, width="100%", height=700)
 
     except Exception as e: st.error(f"Ralat Fail: {e}")
+
