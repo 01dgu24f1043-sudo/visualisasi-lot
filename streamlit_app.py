@@ -63,7 +63,6 @@ if not st.session_state["logged_in"]:
 
 else:
 
-    # HEADER
     logo_path="politeknik-ungku-umar-seeklogo-removebg-preview.png"
 
     col1,col2,col3 = st.columns([1,4,1.5])
@@ -86,7 +85,6 @@ else:
 
     st.markdown("---")
 
-    # SIDEBAR
     st.sidebar.header("Fail Data")
 
     uploaded_file = st.sidebar.file_uploader("Upload CSV",type=["csv"])
@@ -178,95 +176,89 @@ else:
 
                 ))
 
-            # ==============================
-  # BEARING & DISTANCE LABEL
-# ==============================
+            # ======================
+            # BEARING + DISTANCE
+            # ======================
 
-         if show_brg_dist:
+            if show_brg_dist:
 
-             offset = 0.000015
+                offset = 0.000015
 
-           for i in range(len(df_poly)-1):
+                for i in range(len(df_poly)-1):
 
-        p1 = df_poly.iloc[i]
-        p2 = df_poly.iloc[i+1]
+                    p1 = df_poly.iloc[i]
+                    p2 = df_poly.iloc[i+1]
 
-        dE = p2['E'] - p1['E']
-        dN = p2['N'] - p1['N']
+                    dE = p2['E'] - p1['E']
+                    dN = p2['N'] - p1['N']
 
-        dist = np.sqrt(dE**2 + dN**2)
+                    dist = np.sqrt(dE**2 + dN**2)
 
-        brg = np.degrees(np.arctan2(dE, dN)) % 360
+                    brg = np.degrees(np.arctan2(dE, dN)) % 360
 
-        # midpoint
-        mid_lat = (p1['lat'] + p2['lat']) / 2
-        mid_lon = (p1['lon'] + p2['lon']) / 2
+                    mid_lat = (p1['lat'] + p2['lat']) / 2
+                    mid_lon = (p1['lon'] + p2['lon']) / 2
 
-        # direction vector
-        dx = p2['lon'] - p1['lon']
-        dy = p2['lat'] - p1['lat']
+                    dx = p2['lon'] - p1['lon']
+                    dy = p2['lat'] - p1['lat']
 
-        length = np.sqrt(dx**2 + dy**2)
+                    length = np.sqrt(dx**2 + dy**2)
 
-        # normal direction
-        nx = -dy / length
-        ny = dx / length
+                    nx = -dy / length
+                    ny = dx / length
 
-        # label position
-        lat_brg = mid_lat + ny * offset
-        lon_brg = mid_lon + nx * offset
+                    lat_brg = mid_lat + ny * offset
+                    lon_brg = mid_lon + nx * offset
 
-        lat_dist = mid_lat - ny * offset
-        lon_dist = mid_lon - nx * offset
+                    lat_dist = mid_lat - ny * offset
+                    lon_dist = mid_lon - nx * offset
 
-        # rotation angle ikut line
-        angle = np.degrees(np.arctan2(dy, dx))
+                    angle = np.degrees(np.arctan2(dy, dx))
 
-        # supaya text tidak terbalik
-        if angle > 90 or angle < -90:
-            angle += 180
+                    if angle > 90 or angle < -90:
+                        angle += 180
 
-        # ===== BEARING (atas line)
-        fig.add_trace(go.Scattermapbox(
+                    # BEARING
+                    fig.add_trace(go.Scattermapbox(
 
-            lat=[lat_brg],
-            lon=[lon_brg],
+                        lat=[lat_brg],
+                        lon=[lon_brg],
 
-            mode="text",
+                        mode="text",
 
-            text=[decimal_to_dms(brg)],
+                        text=[decimal_to_dms(brg)],
 
-            textfont=dict(
-                size=size_brg,
-                color="cyan"
-            ),
+                        textfont=dict(
+                            size=size_brg,
+                            color="cyan"
+                        ),
 
-            textangle=angle,
-            textposition="middle center"
+                        textangle=angle,
+                        textposition="middle center"
 
-        
+                    ))
 
-        ))
-        # ===== DISTANCE (bawah line)
-        fig.add_trace(go.Scattermapbox(
+                    # DISTANCE
+                    fig.add_trace(go.Scattermapbox(
 
-            lat=[lat_dist],
-            lon=[lon_dist],
+                        lat=[lat_dist],
+                        lon=[lon_dist],
 
-            mode="text",
+                        mode="text",
 
-            text=[f"{dist:.3f} m"],
+                        text=[f"{dist:.3f} m"],
 
-            textfont=dict(
-                size=size_brg,
-                color="cyan"
-            ),
+                        textfont=dict(
+                            size=size_brg,
+                            color="cyan"
+                        ),
 
-            textangle=angle,
-            textposition="middle center"
+                        textangle=angle,
+                        textposition="middle center"
 
-           ))
-            # AREA LABEL
+                    ))
+
+            # AREA
             if show_area:
 
                 area = 0.5*np.abs(
@@ -358,4 +350,3 @@ else:
         except Exception as e:
 
             st.error(f"Ralat: {e}")
-
