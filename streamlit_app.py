@@ -63,7 +63,7 @@ else:
     st.sidebar.header("🛠️ Tetapan Paparan")
     size_stn = st.sidebar.slider("Saiz No Stesen", 8, 20, 10)
     size_brg = st.sidebar.slider("Saiz Teks (Bearing/Jarak)", 6, 15, 8)
-    epsg_input = st.sidebar.text_input("Kod EPSG (Contoh Semenanjung: 4390)", "4390")
+    epsg_input = st.sidebar.text_input("Kod EPSG (Semenanjung: 4390)", "4390")
 
     if uploaded_file:
         try:
@@ -80,22 +80,20 @@ else:
             m = folium.Map(
                 location=[center_lat, center_lon], 
                 zoom_start=19, 
-                max_zoom=22,  # Membenarkan zoom lebih dalam dari biasa
+                max_zoom=22, 
                 tiles=None
             )
             
-            # Layer Satelit Google dengan tetapan kualiti tinggi
             folium.TileLayer(
                 tiles='https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',
                 attr='Google', 
                 name='Google Satellite', 
                 overlay=False, 
                 control=True,
-                max_zoom=22,         # Benarkan layer zoom sehingga 22
-                max_native_zoom=20    # Guna resolusi asal Google sehingga 20 (elak peta kosong)
+                max_zoom=22,
+                max_native_zoom=20
             ).add_to(m)
 
-            # Koordinat untuk poligon
             points = []
             
             for i in range(len(df)):
@@ -111,24 +109,32 @@ else:
                 dist = np.sqrt(dE**2 + dN**2)
                 brg_deg = np.degrees(np.arctan2(dE, dN)) % 360
                 
-                # Kira sudut putaran CSS untuk label
+                # Kira sudut putaran CSS
                 text_angle = brg_deg - 90
                 if 90 < brg_deg < 270: text_angle -= 180 
 
                 mid_lat, mid_lon = (p1['lat'] + p2['lat'])/2, (p1['lon'] + p2['lon'])/2
 
-                # 3. Label Bearing & Jarak (Rotated HTML/CSS)
+                # 3. Label Bearing (Atas Garisan) & Jarak (Bawah Garisan)
+                # Menggunakan Flexbox dengan gap untuk 'mengangkang' garisan lot
                 label_html = f'''
                     <div style="transform: rotate({text_angle}deg); 
+                                display: flex;
+                                flex-direction: column;
+                                justify-content: space-between;
                                 color: #00FFFF; 
                                 font-weight: bold; 
                                 font-size: {size_brg}pt;
                                 text-shadow: 1px 1px 2px black; 
                                 text-align: center;
-                                width: 120px;
-                                margin-left: -60px;
-                                pointer-events: none;">
-                        {decimal_to_dms(brg_deg)}<br>{dist:.3f}m
+                                width: 140px; 
+                                margin-left: -70px;
+                                pointer-events: none;
+                                height: 34px; 
+                                margin-top: -17px;
+                                ">
+                        <div style="white-space: nowrap;">{decimal_to_dms(brg_deg)}</div>
+                        <div style="white-space: nowrap;">{dist:.3f}m</div>
                     </div>'''
                 
                 folium.Marker(
@@ -145,14 +151,14 @@ else:
             folium.Polygon(
                 locations=points, 
                 color='yellow', 
-                weight=3, 
+                weight=2, 
                 fill=True, 
                 fill_color='yellow', 
                 fill_opacity=0.15
             ).add_to(m)
 
             # 5. Paparkan Peta Gabungan
-            st.subheader("🗺️ Peta Lot Gabungan (Satelit + Teks Berotasi)")
+            st.subheader("🗺️ Peta Lot Gabungan (Bearing Atas, Jarak Bawah)")
             st_folium(m, width="100%", height=700)
 
             # Info Luas
@@ -160,6 +166,6 @@ else:
             st.success(f"📐 **Luas Lot:** {area:.3f} m² | {(area/4046.856):.4f} Ekar")
 
         except Exception as e:
-            st.error(f"Ralat: {e}. Sila pastikan format CSV (STN, E, N) betul.")
+            st.error(f"Ralat: {e}. Sila semak format CSV anda.")
     else:
         st.info("Sila muat naik fail CSV untuk melihat paparan lot.")
