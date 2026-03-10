@@ -26,7 +26,7 @@ def decimal_to_dms(deg):
     if s >= 60: s = 0; m += 1
     return f"{d}°{m:02d}'{s:02d}\""
 
-# --- LOGIN & RESET LOGIC (Dikekalkan) ---
+# --- HALAMAN RESET PASSWORD ---
 if st.session_state.get("reset_mode", False):
     st.markdown("### 🔑 Set Semula Kata Laluan")
     uid = st.text_input("ID untuk set semula")
@@ -43,6 +43,7 @@ if st.session_state.get("reset_mode", False):
         st.rerun()
     st.stop()
 
+# --- HALAMAN LOGIN ---
 if not st.session_state["logged_in"]:
     col_l, col_m, col_r = st.columns([1, 1, 1])
     with col_m:
@@ -69,6 +70,7 @@ st.sidebar.markdown("---")
 st.title("POLITEKNIK UNGKU OMAR")
 st.subheader(f"Unit Geomatik - Selamat Datang, {st.session_state['user_name'].upper()}")
 
+# --- SIDEBAR SETTINGS ---
 uploaded_file = st.sidebar.file_uploader("Upload CSV (STN, E, N)", type=["csv"])
 
 st.sidebar.header("👁️ Kawalan Paparan")
@@ -126,15 +128,15 @@ if uploaded_file:
                 stn_txt = f'''<div style="color:white; font-weight:bold; font-size:{size_stn}pt; text-shadow: 1px 1px 2px black; pointer-events:none;">{int(p1["STN"])}</div>'''
                 folium.Marker(loc1, icon=folium.DivIcon(html=stn_txt)).add_to(m)
 
-            # --- LOGIK ROTASI TERKINI (Khas untuk 119°) ---
+            # --- LOGIK ROTASI KHAS ---
             if show_brg:
                 calc_angle = brg - 90
                 
-                # JIKA bearing dalam julat 119 darjah, kita tambah 180 untuk memusingkannya
-                if 118 <= brg <= 120:
+                # HANYA pusingkan bearing 299°
+                if (298 < brg < 300):
                     calc_angle += 180
                 else:
-                    # Untuk bearing lain, kekalkan logik flip standard supaya teks sentiasa tegak
+                    # Logik asal untuk bearing lain supaya tidak terbalik (upside down)
                     if 90 < brg < 270: 
                         calc_angle -= 180
                 
@@ -153,6 +155,9 @@ if uploaded_file:
 
         st.sidebar.markdown("---")
         st.sidebar.info(f"📐 Luas: {area:.3f} m²\n\n📏 Perimeter: {total_dist:.3f} m")
+        geojson = {"type": "FeatureCollection", "features": [{"type": "Feature", "geometry": {"type": "Polygon", "coordinates": [[ [p[1], p[0]] for p in points ] + [[points[0][1], points[0][0]]]]}, "properties": {"Luas": area, "Perimeter": total_dist}}]}
+        st.sidebar.download_button("📥 Export QGIS (GeoJSON)", data=json.dumps(geojson), file_name="lot_puo.geojson", use_container_width=True)
+        
         st_folium(m, width="100%", height=700)
 
     except Exception as e: 
