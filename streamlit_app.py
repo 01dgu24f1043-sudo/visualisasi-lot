@@ -82,11 +82,10 @@ with st.sidebar:
     show_brg = st.checkbox("Paparkan Bearing/Jarak", value=True)
     show_poly = st.checkbox("Paparkan Poligon & Luas", value=True)
 
-    # --- PILIHAN WARNA POLIGON ---
     st.header("🎨 Warna Poligon")
-    poly_color = st.color_picker("Pilih Warna Sempadan", "#00FFFF") # Default Cyan
-    fill_color = st.color_picker("Pilih Warna Isi", "#00FFFF") # Default Cyan
-    fill_opac = st.slider("Kepekatan Warna Isi (Opacity)", 0.0, 1.0, 0.3)
+    poly_color = st.color_picker("Pilih Warna Sempadan", "#00FFFF")
+    fill_color = st.color_picker("Pilih Warna Isi", "#00FFFF")
+    fill_opac = st.slider("Kepekatan Warna Isi", 0.0, 1.0, 0.3)
 
     st.header("🛠️ Tetapan Teks")
     size_stn = st.slider("Saiz No Stesen", 8, 30, 14)
@@ -137,7 +136,7 @@ if uploaded_file:
             total_dist += dist
             brg = np.degrees(np.arctan2(dE, dN)) % 360
             
-            # Marker Titik
+            # Marker Titik Koordinat
             stn_info = f"<b>STESEN {int(p1['STN'])}</b><hr>N: {p1['N']:.3f}<br>E: {p1['E']:.3f}"
             folium.CircleMarker(
                 location=loc1, radius=6, color='red', fill=True, fill_color='yellow',
@@ -157,17 +156,28 @@ if uploaded_file:
                             <div>{decimal_to_dms(brg)}</div><div style="color: #FFD700;">{dist:.3f}m</div></div>'''
                 folium.Marker([(p1['lat']+p2['lat'])/2, (p1['lon']+p2['lon'])/2], icon=folium.DivIcon(html=l_html)).add_to(m)
 
-        # --- POLIGON BERWARNA ---
+        # --- POLIGON DENGAN INFO LUAS & PERIMETER ---
         area = 0.5 * np.abs(np.dot(df['E'], np.roll(df['N'], 1)) - np.dot(df['N'], np.roll(df['E'], 1)))
+        
         if show_poly:
+            # Format HTML untuk Popup Poligon
+            poly_popup_html = f"""
+                <div style="font-family: Arial; font-size: 13px; width: 160px;">
+                    <h4 style="margin-bottom: 5px; color: #333;">Info Lot</h4>
+                    <hr style="margin: 5px 0;">
+                    <b>📐 Luas:</b> {area:.3f} m²<br>
+                    <b>📏 Perimeter:</b> {total_dist:.3f} m
+                </div>
+            """
+            
             folium.Polygon(
                 locations=points, 
-                color=poly_color,      # Warna garisan sempadan
+                color=poly_color, 
                 weight=3, 
                 fill=True, 
-                fill_color=fill_color, # Warna dalam poligon
+                fill_color=fill_color, 
                 fill_opacity=fill_opac, 
-                popup=f"Luas: {area:.3f} m²"
+                popup=folium.Popup(poly_popup_html, max_width=200)
             ).add_to(m)
 
         # Info Sidebar
