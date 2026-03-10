@@ -34,43 +34,38 @@ def decimal_to_dms(deg):
         d += 1
     return f"{d}°{m:02d}'{s:02d}\""
 
-# --- HALAMAN RESET PASSWORD ---
-if st.session_state.get("reset_mode", False):
-    st.markdown("### 🔑 Set Semula Kata Laluan")
-    uid = st.text_input("ID untuk set semula")
-    new_pwd = st.text_input("Kata Laluan Baru", type="password")
-    if st.button("Simpan"):
-        if uid in st.session_state["user_db"]:
-            st.session_state["user_db"][uid]["pwd"] = new_pwd
-            st.success("Berjaya! Sila log masuk.")
+# --- HALAMAN LOGIN & RESET ---
+if not st.session_state["logged_in"]:
+    if st.session_state.get("reset_mode", False):
+        st.markdown("### 🔑 Set Semula Kata Laluan")
+        uid = st.text_input("ID untuk set semula")
+        new_pwd = st.text_input("Kata Laluan Baru", type="password")
+        if st.button("Simpan"):
+            if uid in st.session_state["user_db"]:
+                st.session_state["user_db"][uid]["pwd"] = new_pwd
+                st.success("Berjaya! Sila log masuk.")
+                st.session_state["reset_mode"] = False
+                st.rerun()
+        if st.button("Batal"):
             st.session_state["reset_mode"] = False
             st.rerun()
-        else: 
-            st.error("ID tidak sah")
-    if st.button("Batal"):
-        st.session_state["reset_mode"] = False
-        st.rerun()
-    st.stop()
-
-# --- HALAMAN LOGIN ---
-if not st.session_state["logged_in"]:
-    col_l, col_m, col_r = st.columns([1, 1, 1])
-    with col_m:
-        st.markdown("<h2 style='text-align:center;'>🔐 Sistem Survey Lot PUO</h2>", unsafe_allow_html=True)
-        user_id = st.text_input("ID Pengguna")
-        user_pwd = st.text_input("Kata Laluan", type="password")
-        if st.button("Masuk", use_container_width=True):
-            db = st.session_state["user_db"]
-            if user_id in db and db[user_id]["pwd"] == user_pwd:
-                st.session_state["logged_in"] = True
-                st.session_state["user_id"] = user_id
-                st.session_state["user_name"] = db[user_id]["nama"]
+    else:
+        col_l, col_m, col_r = st.columns([1, 1, 1])
+        with col_m:
+            st.markdown("<h2 style='text-align:center;'>🔐 Sistem Survey Lot PUO</h2>", unsafe_allow_html=True)
+            user_id = st.text_input("ID Pengguna")
+            user_pwd = st.text_input("Kata Laluan", type="password")
+            if st.button("Masuk", use_container_width=True):
+                db = st.session_state["user_db"]
+                if user_id in db and db[user_id]["pwd"] == user_pwd:
+                    st.session_state["logged_in"] = True
+                    st.session_state["user_id"] = user_id
+                    st.session_state["user_name"] = db[user_id]["nama"]
+                    st.rerun()
+                else: st.error("ID/Password Salah")
+            if st.button("Lupa Kata Laluan?"):
+                st.session_state["reset_mode"] = True
                 st.rerun()
-            else: 
-                st.error("ID/Password Salah")
-        if st.button("Lupa Kata Laluan?"):
-            st.session_state["reset_mode"] = True
-            st.rerun()
     st.stop()
 
 # --- SIDEBAR (LOGO & TETAPAN) ---
@@ -78,7 +73,7 @@ with st.sidebar:
     try:
         st.image("politeknik-ungku-umar-seeklogo-removebg-preview.png", use_container_width=True)
     except:
-        st.warning("⚠️ Fail logo tidak dijumpai.")
+        st.warning("⚠️ Logo tidak dijumpai.")
     
     st.markdown(f"<h3 style='text-align:center;'>👋 Hi, {st.session_state['user_name']}</h3>", unsafe_allow_html=True)
     st.divider()
@@ -103,12 +98,8 @@ with st.sidebar:
         st.rerun()
 
 # --- HEADER HALAMAN UTAMA ---
-st.markdown("""
-    <div style="text-align: center;">
-        <h1 style='margin-bottom: 0px;'>POLITEKNIK UNGKU OMAR</h1>
-        <h3 style='margin-top: 0px; color: #555;'>Unit Geomatik - Sistem Visualisasi Lot</h3>
-    </div>
-""", unsafe_allow_html=True)
+st.markdown("<h1 style='text-align:center;'>POLITEKNIK UNGKU OMAR</h1>", unsafe_allow_html=True)
+st.markdown("<h3 style='text-align:center; color:#555;'>Unit Geomatik - Sistem Visualisasi Lot</h3>", unsafe_allow_html=True)
 st.divider()
 
 # --- LOGIK PEMPROSESAN ---
@@ -125,10 +116,8 @@ if uploaded_file:
         m = folium.Map(location=[center_lat, center_lon], zoom_start=19, max_zoom=22, tiles=None)
         
         if show_satellite:
-            folium.TileLayer(
-                tiles='https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', 
-                attr='Google', name='Google Satellite', max_zoom=22, max_native_zoom=20
-            ).add_to(m)
+            folium.TileLayer(tiles='https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', 
+                             attr='Google', name='Google Satellite', max_zoom=22, max_native_zoom=20).add_to(m)
         else:
             folium.TileLayer('OpenStreetMap').add_to(m)
         
@@ -149,70 +138,53 @@ if uploaded_file:
             total_dist += dist
             brg = np.degrees(np.arctan2(dE, dN)) % 360
             
-            # --- MARKER TITIK (DENGAN KOORDINAT N & E) ---
-            # Maklumat ini akan keluar bila KLIK atau LALU tetikus
-            stn_info = f"""
-                <div style="font-family: Arial; font-size: 12px;">
-                    <b>STESEN {int(p1['STN'])}</b><br>
-                    <hr style='margin: 5px 0;'>
-                    <b>N:</b> {p1['N']:.3f}<br>
-                    <b>E:</b> {p1['E']:.3f}
-                </div>
-            """
-            
+            # --- MARKER TITIK (KOORDINAT N & E) ---
+            stn_info = f"<b>STESEN {int(p1['STN'])}</b><hr>N: {p1['N']:.3f}<br>E: {p1['E']:.3f}"
             folium.CircleMarker(
-                location=loc1,
-                radius=6,
-                color='red',
-                fill=True,
-                fill_color='yellow',
-                fill_opacity=0.8,
+                location=loc1, radius=6, color='red', fill=True, fill_color='yellow',
                 popup=folium.Popup(stn_info, max_width=150),
-                tooltip=f"Stesen {int(p1['STN'])} (Klik untuk koordinat)",
-                z_index_offset=1000 # Pastikan titik berada di atas sekali
+                tooltip=f"Stesen {int(p1['STN'])}",
+                z_index_offset=1000 
             ).add_to(m)
 
-            # Label No Stesen (Guna pointer-events:none supaya tak kacau klik titik)
+            # Label No Stesen
             if show_stn:
-                stn_txt = f'''<div style="color:white; font-weight:bold; font-size:{size_stn}pt; 
-                            text-shadow: 2px 2px 3px black; pointer-events:none;">
-                            {int(p1["STN"])}</div>'''
+                stn_txt = f'<div style="color:white; font-weight:bold; font-size:{size_stn}pt; text-shadow: 2px 2px 3px black; pointer-events:none;">{int(p1["STN"])}</div>'
                 folium.Marker(loc1, icon=folium.DivIcon(html=stn_txt, icon_anchor=(-10, 10))).add_to(m)
 
             # Label Bearing & Jarak
             if show_brg:
                 calc_angle = brg - 90
                 if 90 < brg < 270: calc_angle -= 180
-                
-                h_gap = text_gap / 2
-                l_html = f'''<div style="transform: rotate({calc_angle}deg); display: flex; flex-direction: column; 
-                            justify-content: space-between; align-items: center; color: #00FFFF; font-weight: bold; 
-                            font-size: {size_brg}pt; text-shadow: 2px 2px 4px black; width: 200px; margin-left: -100px; 
-                            height: {text_gap}px; margin-top: -{h_gap}px; pointer-events: none; text-align: center;">
-                            <div>{decimal_to_dms(brg)}</div>
-                            <div style="color: #FFD700;">{dist:.3f}m</div>
-                        </div>'''
-                
-                mid_point = [(p1['lat']+p2['lat'])/2, (p1['lon']+p2['lon'])/2]
-                folium.Marker(mid_point, icon=folium.DivIcon(html=l_html)).add_to(m)
+                l_html = f'''<div style="transform: rotate({calc_angle}deg); display: flex; flex-direction: column; justify-content: space-between; align-items: center; color: #00FFFF; font-weight: bold; font-size: {size_brg}pt; text-shadow: 2px 2px 4px black; width: 200px; margin-left: -100px; height: {text_gap}px; margin-top: -{text_gap/2}px; pointer-events: none; text-align: center;">
+                            <div>{decimal_to_dms(brg)}</div><div style="color: #FFD700;">{dist:.3f}m</div></div>'''
+                folium.Marker([(p1['lat']+p2['lat'])/2, (p1['lon']+p2['lon'])/2], icon=folium.DivIcon(html=l_html)).add_to(m)
 
         # Poligon & Luas
         area = 0.5 * np.abs(np.dot(df['E'], np.roll(df['N'], 1)) - np.dot(df['N'], np.roll(df['E'], 1)))
         if show_poly:
-            folium.Polygon(
-                locations=points, color='white', weight=2, fill=True, 
-                fill_opacity=0.1, popup=f"Luas: {area:.3f} m²"
-            ).add_to(m)
+            folium.Polygon(locations=points, color='white', weight=2, fill=True, fill_opacity=0.1, popup=f"Luas: {area:.3f} m²").add_to(m)
 
-        # Sidebar Info
+        # --- EXPORT & INFO SIDEBAR ---
         st.sidebar.markdown("---")
-        st.sidebar.markdown(f"### 📐 Luas: **{area:.3f} m²**")
-        st.sidebar.markdown(f"📏 Perimeter: **{total_dist:.3f} m**")
+        st.sidebar.subheader("📊 Analisis Lot")
+        st.sidebar.success(f"📐 Luas: **{area:.3f} m²**")
+        st.sidebar.info(f"📏 Perimeter: **{total_dist:.3f} m**")
+        
+        # GeoJSON Export (Dikembalikan Semula)
+        geojson_data = {
+            "type": "FeatureCollection",
+            "features": [{
+                "type": "Feature",
+                "geometry": {"type": "Polygon", "coordinates": [[ [p[1], p[0]] for p in points ] + [[points[0][1], points[0][0]]]]},
+                "properties": {"Luas_m2": area, "Perimeter_m": total_dist}
+            }]
+        }
+        st.sidebar.download_button("📥 Export GeoJSON (QGIS)", data=json.dumps(geojson_data), file_name="lot_puo.geojson", use_container_width=True)
         
         # Papar Peta
         st_folium(m, width="100%", height=700, returned_objects=[])
 
-    except Exception as e: 
-        st.error(f"Ralat: {e}")
+    except Exception as e: st.error(f"Ralat: {e}")
 else:
     st.info("Sila muat naik fail CSV untuk memulakan.")
