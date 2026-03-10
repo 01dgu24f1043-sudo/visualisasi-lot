@@ -89,6 +89,10 @@ if uploaded_file:
     try:
         df = pd.read_csv(uploaded_file)
         df.columns = df.columns.str.strip().str.upper()
+        
+        # Susun ikut STN supaya garisan tidak bersilang
+        df = df.sort_values('STN')
+        
         transformer = Transformer.from_crs(f"EPSG:{epsg_input}", "EPSG:4326", always_xy=True)
         df['lon'], df['lat'] = transformer.transform(df['E'].values, df['N'].values)
         
@@ -128,17 +132,15 @@ if uploaded_file:
                 stn_txt = f'''<div style="color:white; font-weight:bold; font-size:{size_stn}pt; text-shadow: 1px 1px 2px black; pointer-events:none;">{int(p1["STN"])}</div>'''
                 folium.Marker(loc1, icon=folium.DivIcon(html=stn_txt)).add_to(m)
 
-            # --- LOGIK ROTASI KHAS ---
+            # --- LOGIK ROTASI DINAMIK (DIPERBAIKI) ---
             if show_brg:
+                # Kira sudut rotasi supaya selari dengan garisan
                 calc_angle = brg - 90
                 
-                # HANYA pusingkan bearing 299°
-                if (298 < brg < 300):
+                # Jika bearing berada di bahagian bawah (90 ke 270), 
+                # pusing tulisan 180 darjah supaya tidak terbalik (upside down)
+                if 90 < brg < 270:
                     calc_angle += 180
-                else:
-                    # Logik asal untuk bearing lain supaya tidak terbalik (upside down)
-                    if 90 < brg < 270: 
-                        calc_angle -= 180
                 
                 h_gap = text_gap / 2
                 l_html = f'''<div style="transform: rotate({calc_angle}deg); display: flex; flex-direction: column; justify-content: space-between; align-items: center; color: #00FFFF; font-weight: bold; font-size: {size_brg}pt; text-shadow: 1px 1px 2px black; width: 180px; margin-left: -90px; height: {text_gap}px; margin-top: -{h_gap}px; pointer-events: none;">
