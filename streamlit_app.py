@@ -7,10 +7,10 @@ from pyproj import Transformer
 import json
 from folium.plugins import Fullscreen
 
-# Tetapan Asas Halaman
+# --- TETAPAN ASAS HALAMAN ---
 st.set_page_config(page_title="Sistem Lot Geomatik PUO", layout="wide")
 
-# --- DATABASE PENGGUNA ---
+# --- DATABASE PENGGUNA (SIMULASI) ---
 if "user_db" not in st.session_state:
     st.session_state["user_db"] = {
         "1": {"nama": "Admin", "pwd": "123"},
@@ -73,62 +73,69 @@ if not st.session_state["logged_in"]:
             st.rerun()
     st.stop()
 
-# --- APLIKASI UTAMA (HEADER DENGAN LOGO DI KIRI) ---
-# Menggunakan columns untuk meletakkan logo di kiri tajuk
-col_logo, col_title = st.columns([1, 5])
-
-with col_logo:
+# --- SIDEBAR (LOGO DI ATAS SEKALI) ---
+with st.sidebar:
     try:
-        st.image("politeknik-ungku-umar-seeklogo-removebg-preview.png", width=140)
+        # Logo PUO diletakkan di sini
+        st.image("politeknik-ungku-umar-seeklogo-removebg-preview.png", use_container_width=True)
     except:
-        st.warning("Logo tidak dijumpai.")
+        st.warning("⚠️ Fail logo tidak dijumpai dalam direktori.")
+    
+    st.markdown(f"<h3 style='text-align:center;'>👋 Hi, {st.session_state['user_name']}</h3>", unsafe_allow_html=True)
+    st.divider()
 
-with col_title:
-    st.markdown("""
-        <div style="margin-top: 10px;">
-            <h1 style='margin-bottom: 0px; padding-bottom: 0px;'>POLITEKNIK UNGKU OMAR</h1>
-            <h3 style='margin-top: 0px; color: #555;'>Unit Geomatik - Sistem Visualisasi Lot</h3>
-        </div>
-    """, unsafe_allow_html=True)
+    uploaded_file = st.file_uploader("📂 Upload CSV (STN, E, N)", type=["csv"])
 
+    st.header("👁️ Kawalan Paparan")
+    show_satellite = st.toggle("Paparkan Imej Satelit", value=True)
+    show_stn = st.checkbox("Paparkan No Stesen", value=True)
+    show_brg = st.checkbox("Paparkan Bearing/Jarak", value=True)
+    show_poly = st.checkbox("Paparkan Poligon & Luas", value=True)
+
+    st.header("🛠️ Tetapan Teks")
+    size_stn = st.slider("Saiz No Stesen", 8, 30, 12)
+    size_brg = st.slider("Saiz Bearing/Jarak", 6, 25, 10)
+    text_gap = st.slider("Keluasan Gap Teks", 20, 100, 45)
+    epsg_input = st.text_input("Kod EPSG (cth: 4390)", "4390")
+
+    st.divider()
+    if st.button("🚪 Log Keluar", use_container_width=True):
+        st.session_state["logged_in"] = False
+        st.rerun()
+
+# --- HEADER HALAMAN UTAMA ---
+st.markdown("""
+    <div style="text-align: center;">
+        <h1 style='margin-bottom: 0px;'>POLITEKNIK UNGKU OMAR</h1>
+        <h3 style='margin-top: 0px; color: #555;'>Unit Geomatik - Sistem Visualisasi Lot</h3>
+    </div>
+""", unsafe_allow_html=True)
 st.divider()
 
-# --- SIDEBAR SETTINGS ---
-st.sidebar.markdown(f"### 👋 Hi, {st.session_state['user_name']}")
-st.sidebar.markdown("---")
-
-uploaded_file = st.sidebar.file_uploader("Upload CSV (STN, E, N)", type=["csv"])
-
-st.sidebar.header("👁️ Kawalan Paparan")
-show_satellite = st.sidebar.toggle("Paparkan Imej Satelit", value=True)
-show_stn = st.sidebar.checkbox("Paparkan No Stesen", value=True)
-show_brg = st.sidebar.checkbox("Paparkan Bearing/Jarak", value=True)
-show_poly = st.sidebar.checkbox("Paparkan Poligon & Luas", value=True)
-
-st.sidebar.header("🛠️ Tetapan Teks")
-size_stn = st.sidebar.slider("Saiz No Stesen", 8, 30, 12)
-size_brg = st.sidebar.slider("Saiz Bearing/Jarak", 6, 25, 10)
-text_gap = st.sidebar.slider("Keluasan Gap Teks", 20, 100, 45)
-epsg_input = st.sidebar.text_input("Kod EPSG (cth: 4390)", "4390")
-
+# --- LOGIK PEMPROSESAN DATA & PETA ---
 if uploaded_file:
     try:
         df = pd.read_csv(uploaded_file)
         df.columns = df.columns.str.strip().str.upper()
         
-        # Penukaran Koordinat
+        # Semakan lajur wajib
+        if not {'STN', 'E', 'N'}.issubset(df.columns):
+            st.error("Ralat: Fail CSV mesti mempunyai lajur STN, E, dan N.")
+            st.stop()
+
+        # Penukaran Koordinat (Projected -> WGS84)
         transformer = Transformer.from_crs(f"EPSG:{epsg_input}", "EPSG:4326", always_xy=True)
         df['lon'], df['lat'] = transformer.transform(df['E'].values, df['N'].values)
         
         center_lat, center_lon = df['lat'].mean(), df['lon'].mean()
         
-        # Cipta Peta
+        # Cipta Peta Folium
         m = folium.Map(location=[center_lat, center_lon], zoom_start=19, max_zoom=22, tiles=None)
         
         if show_satellite:
             folium.TileLayer(
                 tiles='https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', 
-                attr='Google', name='Google Satellite', max_zoom=22, max_native_zoom=20
+                attr='Google Satellite', name='Google Satellite', max_zoom=22, max_native_zoom=20
             ).add_to(m)
         else:
             folium.TileLayer('OpenStreetMap', name='Peta Dasar').add_to(m)
@@ -145,13 +152,13 @@ if uploaded_file:
             loc2 = [p2['lat'], p2['lon']]
             points.append(loc1)
 
-            # Pengiraan Bearing & Jarak
+            # Pengiraan Bearing & Jarak (Satah)
             dE, dN = p2['E'] - p1['E'], p2['N'] - p1['N']
             dist = np.sqrt(dE**2 + dN**2)
             total_dist += dist
             brg = np.degrees(np.arctan2(dE, dN)) % 360
             
-            # Marker Bulatan Stesen
+            # Marker Stesen
             stn_info = f"<b>STESEN {int(p1['STN'])}</b><br>N: {p1['N']:.3f}<br>E: {p1['E']:.3f}"
             folium.CircleMarker(
                 location=loc1, radius=5, color='red', fill=True, fill_color='white',
@@ -163,12 +170,11 @@ if uploaded_file:
                 stn_txt = f'''<div style="color:white; font-weight:bold; font-size:{size_stn}pt; text-shadow: 2px 2px 3px black; pointer-events:none;">{int(p1["STN"])}</div>'''
                 folium.Marker(loc1, icon=folium.DivIcon(html=stn_txt, icon_anchor=(0,0))).add_to(m)
 
-            # Label Bearing & Jarak (Logik Rotasi)
+            # Label Bearing & Jarak
             if show_brg:
                 calc_angle = brg - 90
-                # Elak teks terbalik
                 if 90 < brg < 270:
-                    calc_angle -= 180
+                    calc_angle -= 180 # Supaya teks tidak terbalik
                 
                 h_gap = text_gap / 2
                 l_html = f'''<div style="transform: rotate({calc_angle}deg); display: flex; flex-direction: column; justify-content: space-between; align-items: center; color: #00FFFF; font-weight: bold; font-size: {size_brg}pt; text-shadow: 2px 2px 4px black; width: 200px; margin-left: -100px; height: {text_gap}px; margin-top: -{h_gap}px; pointer-events: none; text-align: center;">
@@ -179,8 +185,9 @@ if uploaded_file:
                 mid_point = [(p1['lat']+p2['lat'])/2, (p1['lon']+p2['lon'])/2]
                 folium.Marker(mid_point, icon=folium.DivIcon(html=l_html)).add_to(m)
 
-        # Poligon & Luas
+        # Pengiraan Luas (Formula Shoelace)
         area = 0.5 * np.abs(np.dot(df['E'], np.roll(df['N'], 1)) - np.dot(df['N'], np.roll(df['E'], 1)))
+        
         if show_poly:
             poly_info = f"<b>INFO LOT</b><hr>Luas: {area:.3f} m²<br>Perimeter: {total_dist:.3f} m"
             folium.Polygon(
@@ -188,8 +195,8 @@ if uploaded_file:
                 fill_opacity=0.15, popup=folium.Popup(poly_info, max_width=200)
             ).add_to(m)
 
-        # Paparan Sidebar Info
-        st.sidebar.markdown("---")
+        # Ringkasan di Sidebar
+        st.sidebar.markdown("### 📊 Ringkasan Lot")
         st.sidebar.success(f"📐 Luas: {area:.3f} m²")
         st.sidebar.info(f"📏 Perimeter: {total_dist:.3f} m")
         
@@ -202,19 +209,12 @@ if uploaded_file:
                 "properties": {"Luas": area, "Perimeter": total_dist}
             }]
         }
-        st.sidebar.download_button("📥 Export QGIS (GeoJSON)", data=json.dumps(geojson), file_name="lot_puo.geojson", use_container_width=True)
+        st.sidebar.download_button("📥 Export ke QGIS (GeoJSON)", data=json.dumps(geojson), file_name="lot_puo.geojson", use_container_width=True)
         
-        # Papar Peta Utama
+        # Papar Peta
         st_folium(m, width="100%", height=700)
 
     except Exception as e: 
         st.error(f"Ralat Pemprosesan: {e}")
 else:
-    st.info("Sila muat naik fail CSV di sidebar untuk memulakan.")
-
-# --- LOGOUT ---
-st.sidebar.markdown("<br>" * 3, unsafe_allow_html=True)
-if st.sidebar.button("🚪 Log Keluar", use_container_width=True):
-    st.session_state["logged_in"] = False
-    st.rerun()
-
+    st.info("👋 Selamat Datang! Sila muat naik fail CSV di sidebar untuk mula memaparkan lot ukur.")
