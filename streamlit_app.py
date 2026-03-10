@@ -73,13 +73,12 @@ if not st.session_state["logged_in"]:
             st.rerun()
     st.stop()
 
-# --- SIDEBAR (LOGO DI ATAS SEKALI) ---
+# --- SIDEBAR (LOGO & TETAPAN) ---
 with st.sidebar:
     try:
-        # Logo PUO diletakkan di sini
         st.image("politeknik-ungku-umar-seeklogo-removebg-preview.png", use_container_width=True)
     except:
-        st.warning("⚠️ Fail logo tidak dijumpai dalam direktori.")
+        st.warning("⚠️ Fail logo tidak dijumpai.")
     
     st.markdown(f"<h3 style='text-align:center;'>👋 Hi, {st.session_state['user_name']}</h3>", unsafe_allow_html=True)
     st.divider()
@@ -93,7 +92,7 @@ with st.sidebar:
     show_poly = st.checkbox("Paparkan Poligon & Luas", value=True)
 
     st.header("🛠️ Tetapan Teks")
-    size_stn = st.slider("Saiz No Stesen", 8, 30, 12)
+    size_stn = st.slider("Saiz No Stesen", 8, 30, 14)
     size_brg = st.slider("Saiz Bearing/Jarak", 6, 25, 10)
     text_gap = st.slider("Keluasan Gap Teks", 20, 100, 45)
     epsg_input = st.text_input("Kod EPSG (cth: 4390)", "4390")
@@ -112,33 +111,26 @@ st.markdown("""
 """, unsafe_allow_html=True)
 st.divider()
 
-# --- LOGIK PEMPROSESAN DATA & PETA ---
+# --- LOGIK PEMPROSESAN ---
 if uploaded_file:
     try:
         df = pd.read_csv(uploaded_file)
         df.columns = df.columns.str.strip().str.upper()
         
-        # Semakan lajur wajib
-        if not {'STN', 'E', 'N'}.issubset(df.columns):
-            st.error("Ralat: Fail CSV mesti mempunyai lajur STN, E, dan N.")
-            st.stop()
-
-        # Penukaran Koordinat (Projected -> WGS84)
+        # Penukaran Koordinat
         transformer = Transformer.from_crs(f"EPSG:{epsg_input}", "EPSG:4326", always_xy=True)
         df['lon'], df['lat'] = transformer.transform(df['E'].values, df['N'].values)
         
         center_lat, center_lon = df['lat'].mean(), df['lon'].mean()
-        
-        # Cipta Peta Folium
         m = folium.Map(location=[center_lat, center_lon], zoom_start=19, max_zoom=22, tiles=None)
         
         if show_satellite:
             folium.TileLayer(
                 tiles='https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', 
-                attr='Google Satellite', name='Google Satellite', max_zoom=22, max_native_zoom=20
+                attr='Google', name='Google Satellite', max_zoom=22, max_native_zoom=20
             ).add_to(m)
         else:
-            folium.TileLayer('OpenStreetMap', name='Peta Dasar').add_to(m)
+            folium.TileLayer('OpenStreetMap').add_to(m)
         
         Fullscreen(position="topright").add_to(m)
 
@@ -149,72 +141,78 @@ if uploaded_file:
             p1 = df.iloc[i]
             p2 = df.iloc[(i + 1) % len(df)]
             loc1 = [p1['lat'], p1['lon']]
-            loc2 = [p2['lat'], p2['lon']]
             points.append(loc1)
 
-            # Pengiraan Bearing & Jarak (Satah)
+            # Pengiraan Bearing & Jarak
             dE, dN = p2['E'] - p1['E'], p2['N'] - p1['N']
             dist = np.sqrt(dE**2 + dN**2)
             total_dist += dist
             brg = np.degrees(np.arctan2(dE, dN)) % 360
             
-            # Marker Stesen
-            stn_info = f"<b>STESEN {int(p1['STN'])}</b><br>N: {p1['N']:.3f}<br>E: {p1['E']:.3f}"
+            # --- MARKER TITIK (DENGAN KOORDINAT N & E) ---
+            # Maklumat ini akan keluar bila KLIK atau LALU tetikus
+            stn_info = f"""
+                <div style="font-family: Arial; font-size: 12px;">
+                    <b>STESEN {int(p1['STN'])}</b><br>
+                    <hr style='margin: 5px 0;'>
+                    <b>N:</b> {p1['N']:.3f}<br>
+                    <b>E:</b> {p1['E']:.3f}
+                </div>
+            """
+            
             folium.CircleMarker(
-                location=loc1, radius=5, color='red', fill=True, fill_color='white',
-                popup=folium.Popup(stn_info, max_width=200)
+                location=loc1,
+                radius=6,
+                color='red',
+                fill=True,
+                fill_color='yellow',
+                fill_opacity=0.8,
+                popup=folium.Popup(stn_info, max_width=150),
+                tooltip=f"Stesen {int(p1['STN'])} (Klik untuk koordinat)",
+                z_index_offset=1000 # Pastikan titik berada di atas sekali
             ).add_to(m)
 
-            # Label No Stesen
+            # Label No Stesen (Guna pointer-events:none supaya tak kacau klik titik)
             if show_stn:
-                stn_txt = f'''<div style="color:white; font-weight:bold; font-size:{size_stn}pt; text-shadow: 2px 2px 3px black; pointer-events:none;">{int(p1["STN"])}</div>'''
-                folium.Marker(loc1, icon=folium.DivIcon(html=stn_txt, icon_anchor=(0,0))).add_to(m)
+                stn_txt = f'''<div style="color:white; font-weight:bold; font-size:{size_stn}pt; 
+                            text-shadow: 2px 2px 3px black; pointer-events:none;">
+                            {int(p1["STN"])}</div>'''
+                folium.Marker(loc1, icon=folium.DivIcon(html=stn_txt, icon_anchor=(-10, 10))).add_to(m)
 
             # Label Bearing & Jarak
             if show_brg:
                 calc_angle = brg - 90
-                if 90 < brg < 270:
-                    calc_angle -= 180 # Supaya teks tidak terbalik
+                if 90 < brg < 270: calc_angle -= 180
                 
                 h_gap = text_gap / 2
-                l_html = f'''<div style="transform: rotate({calc_angle}deg); display: flex; flex-direction: column; justify-content: space-between; align-items: center; color: #00FFFF; font-weight: bold; font-size: {size_brg}pt; text-shadow: 2px 2px 4px black; width: 200px; margin-left: -100px; height: {text_gap}px; margin-top: -{h_gap}px; pointer-events: none; text-align: center;">
-                    <div style="padding-bottom:2px;">{decimal_to_dms(brg)}</div>
-                    <div style="padding-top:2px; color: #FFD700;">{dist:.3f}m</div>
-                </div>'''
+                l_html = f'''<div style="transform: rotate({calc_angle}deg); display: flex; flex-direction: column; 
+                            justify-content: space-between; align-items: center; color: #00FFFF; font-weight: bold; 
+                            font-size: {size_brg}pt; text-shadow: 2px 2px 4px black; width: 200px; margin-left: -100px; 
+                            height: {text_gap}px; margin-top: -{h_gap}px; pointer-events: none; text-align: center;">
+                            <div>{decimal_to_dms(brg)}</div>
+                            <div style="color: #FFD700;">{dist:.3f}m</div>
+                        </div>'''
                 
                 mid_point = [(p1['lat']+p2['lat'])/2, (p1['lon']+p2['lon'])/2]
                 folium.Marker(mid_point, icon=folium.DivIcon(html=l_html)).add_to(m)
 
-        # Pengiraan Luas (Formula Shoelace)
+        # Poligon & Luas
         area = 0.5 * np.abs(np.dot(df['E'], np.roll(df['N'], 1)) - np.dot(df['N'], np.roll(df['E'], 1)))
-        
         if show_poly:
-            poly_info = f"<b>INFO LOT</b><hr>Luas: {area:.3f} m²<br>Perimeter: {total_dist:.3f} m"
             folium.Polygon(
-                locations=points, color='yellow', weight=3, fill=True, 
-                fill_opacity=0.15, popup=folium.Popup(poly_info, max_width=200)
+                locations=points, color='white', weight=2, fill=True, 
+                fill_opacity=0.1, popup=f"Luas: {area:.3f} m²"
             ).add_to(m)
 
-        # Ringkasan di Sidebar
-        st.sidebar.markdown("### 📊 Ringkasan Lot")
-        st.sidebar.success(f"📐 Luas: {area:.3f} m²")
-        st.sidebar.info(f"📏 Perimeter: {total_dist:.3f} m")
-        
-        # Export GeoJSON
-        geojson = {
-            "type": "FeatureCollection", 
-            "features": [{
-                "type": "Feature", 
-                "geometry": {"type": "Polygon", "coordinates": [[ [p[1], p[0]] for p in points ] + [[points[0][1], points[0][0]]]]}, 
-                "properties": {"Luas": area, "Perimeter": total_dist}
-            }]
-        }
-        st.sidebar.download_button("📥 Export ke QGIS (GeoJSON)", data=json.dumps(geojson), file_name="lot_puo.geojson", use_container_width=True)
+        # Sidebar Info
+        st.sidebar.markdown("---")
+        st.sidebar.markdown(f"### 📐 Luas: **{area:.3f} m²**")
+        st.sidebar.markdown(f"📏 Perimeter: **{total_dist:.3f} m**")
         
         # Papar Peta
-        st_folium(m, width="100%", height=700)
+        st_folium(m, width="100%", height=700, returned_objects=[])
 
     except Exception as e: 
-        st.error(f"Ralat Pemprosesan: {e}")
+        st.error(f"Ralat: {e}")
 else:
-    st.info("👋 Selamat Datang! Sila muat naik fail CSV di sidebar untuk mula memaparkan lot ukur.")
+    st.info("Sila muat naik fail CSV untuk memulakan.")
