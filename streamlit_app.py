@@ -128,22 +128,16 @@ if uploaded_file:
                 stn_txt = f'''<div style="color:white; font-weight:bold; font-size:{size_stn}pt; text-shadow: 1px 1px 2px black; pointer-events:none;">{int(p1["STN"])}</div>'''
                 folium.Marker(loc1, icon=folium.DivIcon(html=stn_txt)).add_to(m)
 
-            # --- Label Bearing/Jarak dengan Logik Rotasi Terpilih ---
+            # --- LOGIK ROTASI KHAS ---
             if show_brg:
-                # Logik asal
                 calc_angle = brg - 90
                 
-                # SEMAK BEARING: Jika menghampiri 299.13 (299°08') atau 119.13 (119°07')
-                # Kita guna range +- 1 darjah untuk keselamatan data input
-                if (298 < brg < 300) or (118 < brg < 120):
-                    calc_angle += 180  # Pusingkan hanya yang ini
-                
-                # Logik Flip Teks (supaya teks tidak terbalik/upside down)
-                # Dikekalkan supaya teks sentiasa boleh dibaca
-                if 90 < brg < 270: 
-                    # Jika sudah dipusing 180 tadi, kita jangan flip balik secara automatik
-                    # kecuali untuk bearing spesifik
-                    if not ((298 < brg < 300) or (118 < brg < 120)):
+                # HANYA pusingkan bearing 299°
+                if (298 < brg < 300):
+                    calc_angle += 180
+                else:
+                    # Logik asal untuk bearing lain supaya tidak terbalik (upside down)
+                    if 90 < brg < 270: 
                         calc_angle -= 180
                 
                 h_gap = text_gap / 2
