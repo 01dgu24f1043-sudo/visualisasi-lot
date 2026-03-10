@@ -10,7 +10,7 @@ from folium.plugins import Fullscreen
 # --- TETAPAN ASAS HALAMAN ---
 st.set_page_config(page_title="Sistem Lot Geomatik PUO", layout="wide")
 
-# --- DATABASE PENGGUNA (SIMULASI) ---
+# --- DATABASE PENGGUNA ---
 if "user_db" not in st.session_state:
     st.session_state["user_db"] = {
         "1": {"nama": "Admin", "pwd": "123"},
@@ -26,15 +26,11 @@ def decimal_to_dms(deg):
     d = int(deg)
     m = int((deg - d) * 60)
     s = int(round((deg - d - m/60) * 3600))
-    if s >= 60: 
-        s = 0
-        m += 1
-    if m >= 60:
-        m = 0
-        d += 1
+    if s >= 60: s = 0; m += 1
+    if m >= 60: m = 0; d += 1
     return f"{d}°{m:02d}'{s:02d}\""
 
-# --- HALAMAN LOGIN & RESET ---
+# --- HALAMAN LOGIN ---
 if not st.session_state["logged_in"]:
     if st.session_state.get("reset_mode", False):
         st.markdown("### 🔑 Set Semula Kata Laluan")
@@ -68,7 +64,7 @@ if not st.session_state["logged_in"]:
                 st.rerun()
     st.stop()
 
-# --- SIDEBAR (LOGO & TETAPAN) ---
+# --- SIDEBAR ---
 with st.sidebar:
     try:
         st.image("politeknik-ungku-umar-seeklogo-removebg-preview.png", use_container_width=True)
@@ -86,6 +82,12 @@ with st.sidebar:
     show_brg = st.checkbox("Paparkan Bearing/Jarak", value=True)
     show_poly = st.checkbox("Paparkan Poligon & Luas", value=True)
 
+    # --- PILIHAN WARNA POLIGON ---
+    st.header("🎨 Warna Poligon")
+    poly_color = st.color_picker("Pilih Warna Sempadan", "#00FFFF") # Default Cyan
+    fill_color = st.color_picker("Pilih Warna Isi", "#00FFFF") # Default Cyan
+    fill_opac = st.slider("Kepekatan Warna Isi (Opacity)", 0.0, 1.0, 0.3)
+
     st.header("🛠️ Tetapan Teks")
     size_stn = st.slider("Saiz No Stesen", 8, 30, 14)
     size_brg = st.slider("Saiz Bearing/Jarak", 6, 25, 10)
@@ -97,18 +99,16 @@ with st.sidebar:
         st.session_state["logged_in"] = False
         st.rerun()
 
-# --- HEADER HALAMAN UTAMA ---
+# --- HEADER UTAMA ---
 st.markdown("<h1 style='text-align:center;'>POLITEKNIK UNGKU OMAR</h1>", unsafe_allow_html=True)
 st.markdown("<h3 style='text-align:center; color:#555;'>Unit Geomatik - Sistem Visualisasi Lot</h3>", unsafe_allow_html=True)
 st.divider()
 
-# --- LOGIK PEMPROSESAN ---
 if uploaded_file:
     try:
         df = pd.read_csv(uploaded_file)
         df.columns = df.columns.str.strip().str.upper()
         
-        # Penukaran Koordinat
         transformer = Transformer.from_crs(f"EPSG:{epsg_input}", "EPSG:4326", always_xy=True)
         df['lon'], df['lat'] = transformer.transform(df['E'].values, df['N'].values)
         
@@ -132,13 +132,12 @@ if uploaded_file:
             loc1 = [p1['lat'], p1['lon']]
             points.append(loc1)
 
-            # Pengiraan Bearing & Jarak
             dE, dN = p2['E'] - p1['E'], p2['N'] - p1['N']
             dist = np.sqrt(dE**2 + dN**2)
             total_dist += dist
             brg = np.degrees(np.arctan2(dE, dN)) % 360
             
-            # --- MARKER TITIK (KOORDINAT N & E) ---
+            # Marker Titik
             stn_info = f"<b>STESEN {int(p1['STN'])}</b><hr>N: {p1['N']:.3f}<br>E: {p1['E']:.3f}"
             folium.CircleMarker(
                 location=loc1, radius=6, color='red', fill=True, fill_color='yellow',
@@ -147,12 +146,10 @@ if uploaded_file:
                 z_index_offset=1000 
             ).add_to(m)
 
-            # Label No Stesen
             if show_stn:
                 stn_txt = f'<div style="color:white; font-weight:bold; font-size:{size_stn}pt; text-shadow: 2px 2px 3px black; pointer-events:none;">{int(p1["STN"])}</div>'
                 folium.Marker(loc1, icon=folium.DivIcon(html=stn_txt, icon_anchor=(-10, 10))).add_to(m)
 
-            # Label Bearing & Jarak
             if show_brg:
                 calc_angle = brg - 90
                 if 90 < brg < 270: calc_angle -= 180
@@ -160,18 +157,25 @@ if uploaded_file:
                             <div>{decimal_to_dms(brg)}</div><div style="color: #FFD700;">{dist:.3f}m</div></div>'''
                 folium.Marker([(p1['lat']+p2['lat'])/2, (p1['lon']+p2['lon'])/2], icon=folium.DivIcon(html=l_html)).add_to(m)
 
-        # Poligon & Luas
+        # --- POLIGON BERWARNA ---
         area = 0.5 * np.abs(np.dot(df['E'], np.roll(df['N'], 1)) - np.dot(df['N'], np.roll(df['E'], 1)))
         if show_poly:
-            folium.Polygon(locations=points, color='white', weight=2, fill=True, fill_opacity=0.1, popup=f"Luas: {area:.3f} m²").add_to(m)
+            folium.Polygon(
+                locations=points, 
+                color=poly_color,      # Warna garisan sempadan
+                weight=3, 
+                fill=True, 
+                fill_color=fill_color, # Warna dalam poligon
+                fill_opacity=fill_opac, 
+                popup=f"Luas: {area:.3f} m²"
+            ).add_to(m)
 
-        # --- EXPORT & INFO SIDEBAR ---
+        # Info Sidebar
         st.sidebar.markdown("---")
         st.sidebar.subheader("📊 Analisis Lot")
         st.sidebar.success(f"📐 Luas: **{area:.3f} m²**")
         st.sidebar.info(f"📏 Perimeter: **{total_dist:.3f} m**")
         
-        # GeoJSON Export (Dikembalikan Semula)
         geojson_data = {
             "type": "FeatureCollection",
             "features": [{
@@ -180,9 +184,8 @@ if uploaded_file:
                 "properties": {"Luas_m2": area, "Perimeter_m": total_dist}
             }]
         }
-        st.sidebar.download_button("📥 Export GeoJSON (QGIS)", data=json.dumps(geojson_data), file_name="lot_puo.geojson", use_container_width=True)
+        st.sidebar.download_button("📥 Export GeoJSON", data=json.dumps(geojson_data), file_name="lot_puo.geojson", use_container_width=True)
         
-        # Papar Peta
         st_folium(m, width="100%", height=700, returned_objects=[])
 
     except Exception as e: st.error(f"Ralat: {e}")
