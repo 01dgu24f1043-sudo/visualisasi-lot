@@ -79,7 +79,7 @@ col_logo, col_title = st.columns([1, 5])
 
 with col_logo:
     try:
-        st.image("politeknik-ungku-umar-seeklogo-removebg-preview.png.png", width=140)
+        st.image("politeknik-ungku-umar-seeklogo-removebg-preview.png", width=140)
     except:
         st.warning("Logo tidak dijumpai.")
 
@@ -217,3 +217,4 @@ st.sidebar.markdown("<br>" * 3, unsafe_allow_html=True)
 if st.sidebar.button("🚪 Log Keluar", use_container_width=True):
     st.session_state["logged_in"] = False
     st.rerun()
+
