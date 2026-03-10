@@ -1,5 +1,5 @@
 import streamlit as st
-import pandas as pd
+import pd as pd
 import numpy as np
 import folium
 from streamlit_folium import st_folium
@@ -83,20 +83,16 @@ st.sidebar.header("🛠️ Tetapan Saiz Teks")
 size_stn = st.sidebar.slider("Saiz No Stesen", 8, 30, 12)
 size_brg = st.sidebar.slider("Saiz Bearing/Jarak", 6, 25, 10)
 text_gap = st.sidebar.slider("Keluasan Gap Teks", 20, 70, 40)
-epsg_input = st.sidebar.text_input("Kod EPSG (Contoh: 4390)", "4390")
+epsg_input = st.sidebar.text_input("Kod EPSG", "4390")
 
 if uploaded_file:
     try:
         df = pd.read_csv(uploaded_file)
         df.columns = df.columns.str.strip().str.upper()
-        
-        # Transformasi Koordinat ke WGS84
         transformer = Transformer.from_crs(f"EPSG:{epsg_input}", "EPSG:4326", always_xy=True)
         df['lon'], df['lat'] = transformer.transform(df['E'].values, df['N'].values)
         
         center_lat, center_lon = df['lat'].mean(), df['lon'].mean()
-        
-        # Inisialisasi Peta
         m = folium.Map(location=[center_lat, center_lon], zoom_start=19, max_zoom=22, tiles=None)
         
         if show_satellite:
@@ -111,19 +107,17 @@ if uploaded_file:
 
         points = []
         total_dist = 0
-        
         for i in range(len(df)):
             p1, p2 = df.iloc[i], df.iloc[(i + 1) % len(df)]
             loc1 = [p1['lat'], p1['lon']]
             points.append(loc1)
 
-            # Pengiraan Bearing dan Jarak
             dE, dN = p2['E'] - p1['E'], p2['N'] - p1['N']
             dist = np.sqrt(dE**2 + dN**2)
             total_dist += dist
             brg = np.degrees(np.arctan2(dE, dN)) % 360
             
-            # --- Marker Stesen & Popup ---
+            # Marker Stesen
             stn_info = f"<b>STESEN {int(p1['STN'])}</b><br>N: {p1['N']:.3f}<br>E: {p1['E']:.3f}"
             folium.CircleMarker(
                 location=loc1, radius=6, color='red', fill=True, fill_color='white',
@@ -134,19 +128,20 @@ if uploaded_file:
                 stn_txt = f'''<div style="color:white; font-weight:bold; font-size:{size_stn}pt; text-shadow: 1px 1px 2px black; pointer-events:none;">{int(p1["STN"])}</div>'''
                 folium.Marker(loc1, icon=folium.DivIcon(html=stn_txt)).add_to(m)
 
-            # --- Label Bearing/Jarak (JARAK DI ATAS, BEARING DI BAWAH) ---
+            # --- Label Bearing/Jarak (DENGAN ROTASI 180 DARJAH) ---
             if show_brg:
-                calc_angle = brg - 90
+                # Logik asal: calc_angle = brg - 90
+                # Kita tambah + 180 untuk buat rotation "terbalik"
+                calc_angle = (brg - 90) + 180 
+                
                 if 90 < brg < 270: 
                     calc_angle -= 180
                 
                 h_gap = text_gap / 2
-                # Susunan Div ditukar: Jarak (dist) di atas, Bearing (decimal_to_dms) di bawah
                 l_html = f'''<div style="transform: rotate({calc_angle}deg); display: flex; flex-direction: column; justify-content: space-between; align-items: center; color: #00FFFF; font-weight: bold; font-size: {size_brg}pt; text-shadow: 1px 1px 2px black; width: 180px; margin-left: -90px; height: {text_gap}px; margin-top: -{h_gap}px; pointer-events: none;">
-                    <div style="padding-bottom:2px;">{dist:.3f}m</div>
-                    <div style="padding-top:2px;">{decimal_to_dms(brg)}</div>
+                    <div style="padding-bottom:2px;">{decimal_to_dms(brg)}</div>
+                    <div style="padding-top:2px;">{dist:.3f}m</div>
                 </div>'''
-                
                 folium.Marker([ (p1['lat']+p2['lat'])/2, (p1['lon']+p2['lon'])/2 ], icon=folium.DivIcon(html=l_html)).add_to(m)
 
         # --- Poligon & Luas ---
@@ -155,21 +150,9 @@ if uploaded_file:
             poly_info = f"<b>INFO LOT</b><hr>Luas: {area:.3f} m²<br>Perimeter: {total_dist:.3f} m"
             folium.Polygon(locations=points, color='yellow', weight=3, fill=True, fill_opacity=0.15, popup=folium.Popup(poly_info, max_width=200)).add_to(m)
 
-        # --- Sidebar Info & Export ---
         st.sidebar.markdown("---")
         st.sidebar.info(f"📐 Luas: {area:.3f} m²\n\n📏 Perimeter: {total_dist:.3f} m")
-        
-        geojson = {
-            "type": "FeatureCollection", 
-            "features": [{
-                "type": "Feature", 
-                "geometry": {
-                    "type": "Polygon", 
-                    "coordinates": [[ [p[1], p[0]] for p in points ] + [[points[0][1], points[0][0]]]]
-                }, 
-                "properties": {"Luas": area, "Perimeter": total_dist}
-            }]
-        }
+        geojson = {"type": "FeatureCollection", "features": [{"type": "Feature", "geometry": {"type": "Polygon", "coordinates": [[ [p[1], p[0]] for p in points ] + [[points[0][1], points[0][0]]]]}, "properties": {"Luas": area, "Perimeter": total_dist}}]}
         st.sidebar.download_button("📥 Export QGIS (GeoJSON)", data=json.dumps(geojson), file_name="lot_puo.geojson", use_container_width=True)
         
         st_folium(m, width="100%", height=700)
