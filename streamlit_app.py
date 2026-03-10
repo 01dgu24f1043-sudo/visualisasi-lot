@@ -1,5 +1,5 @@
 import streamlit as st
-import pd as pd
+import pandas as pd
 import numpy as np
 import folium
 from streamlit_folium import st_folium
@@ -130,8 +130,7 @@ if uploaded_file:
 
             # --- Label Bearing/Jarak (DENGAN ROTASI 180 DARJAH) ---
             if show_brg:
-                # Logik asal: calc_angle = brg - 90
-                # Kita tambah + 180 untuk buat rotation "terbalik"
+                # Menambah +180 untuk memusingkan teks ke posisi bertentangan
                 calc_angle = (brg - 90) + 180 
                 
                 if 90 < brg < 270: 
